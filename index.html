@@ -1,0 +1,1628 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palazzo dell’Arte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,500;1,700&display=swap">
+<style>
+  :root {
+    --bg: #0b0e1a;
+    /* Единица макета: один пиксель при 1920×1080. Окно меньше — тот же макет, только уменьшенный */
+    --u: min(100vw / 1920, 100vh / 1080);
+    --overscan: 4%; /* запас слоёв за краем кадра, чтобы при сдвиге не открывалась пустота */
+    /* свечение предмета при наведении и когда он выбран: тёплое золото, плотное, по форме предмета */
+    --object-glow: drop-shadow(0 0 0.5vw rgba(255, 214, 150, 1)) drop-shadow(0 0 1.4vw rgba(255, 200, 125, 0.95)) drop-shadow(0 0 2.8vw rgba(255, 186, 105, 0.8));
+  }
+  html, body { margin: 0; background: var(--bg); }
+  .hero { position: relative; height: 100vh; height: 100svh; overflow: hidden; }
+  /* Сцена 16:9 заполняет экран без искажений (как object-fit: cover) */
+  .stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 177.78vh);
+    aspect-ratio: 16 / 9;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+  .stage.is-ready { opacity: 1; }
+  .layer {
+    position: absolute;
+    left: calc(var(--overscan) * -1);
+    top: calc(var(--overscan) * -1);
+    width: calc(100% + var(--overscan) * 2);
+    height: calc(100% + var(--overscan) * 2);
+    display: block;
+    will-change: transform;
+  }
+  .sphere {
+    position: absolute;
+    overflow: hidden;
+    border-radius: 50%;
+    will-change: transform;
+  }
+  .sphere img { display: block; width: 100%; height: auto; }
+  .glint {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 55%;
+    height: 55%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 246, 220, 0.95) 0%, rgba(255, 230, 180, 0.35) 30%, rgba(255, 230, 180, 0) 68%);
+    will-change: transform;
+  }
+  #girl, #girl-live, #sketch-girl { transform-origin: 50% 100%; }
+  #girl-live { visibility: hidden; }
+  /* Набросок проступает сквозь пятна краски; рисует его сценарий на этом холсте */
+  #sketch {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    visibility: hidden;
+  }
+  /* Подсветка выбранного предмета: свечение по его форме (у карты его рисует живая рука) */
+  /* Ровное, без мерцания; по силе — как у карты */
+  .float-phones.is-lit .float-phones-spin { filter: var(--object-glow); }
+  .float-orange.is-lit canvas { filter: var(--object-glow); }
+  /* Слой текстов поверх сцены. Все размеры — как в макете 1920×1080, через единицу --u */
+  .shade { position: absolute; left: 0; right: 0; height: calc(119 * var(--u)); pointer-events: none; }
+  .shade-top { top: 0; background: linear-gradient(180deg, rgba(20, 27, 40, 0.8), rgba(20, 27, 40, 0)); }
+  .shade-bottom { bottom: 0; background: linear-gradient(0deg, rgba(20, 27, 40, 0.8), rgba(20, 27, 40, 0)); }
+  .wordmark {
+    position: absolute;
+    left: calc(100 * var(--u));
+    bottom: calc(82 * var(--u));
+    margin: 0;
+    color: #fff;
+    font: 700 calc(182 * var(--u)) / calc(161 * var(--u)) Inter, Arial, sans-serif;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .wordmark em { font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: 700; line-height: 0; }
+
+  .site-header {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: calc(24 * var(--u)) calc(32 * var(--u));
+    color: #fff;
+    font: 600 calc(16 * var(--u)) / calc(24 * var(--u)) Inter, Arial, sans-serif;
+    letter-spacing: -0.02em;
+    pointer-events: none;
+  }
+  .header-side { display: flex; align-items: center; gap: calc(8 * var(--u)); }
+  .header-left { gap: calc(32 * var(--u)); }
+  .site-nav { display: flex; gap: calc(8 * var(--u)); }
+  .brand, .link, .btn-buy { pointer-events: auto; text-decoration: none; cursor: pointer; font: inherit; letter-spacing: inherit; }
+  .brand { display: flex; align-items: center; gap: calc(8 * var(--u)); padding: calc(8 * var(--u)) 0; color: #fff; transition: color 0.2s ease; }
+  .brand svg { display: block; width: calc(24 * var(--u)); height: calc(24 * var(--u)); }
+  .brand-text { display: flex; gap: calc(12 * var(--u)); white-space: nowrap; }
+  .brand-sub { font-weight: 400; color: rgba(255, 255, 255, 0.7); transition: color 0.2s ease; }
+  .brand:hover, .brand:focus-visible, .brand:hover .brand-sub, .brand:focus-visible .brand-sub { color: #f6993f; }
+  .link {
+    display: flex;
+    align-items: center;
+    gap: calc(4 * var(--u));
+    padding: calc(8 * var(--u)) calc(12 * var(--u)) calc(8 * var(--u)) calc(20 * var(--u));
+    color: #fff;
+    white-space: nowrap;
+    background: transparent;
+    border: 0;
+    border-radius: calc(20 * var(--u));
+    transition: background 0.2s ease;
+  }
+  .link svg { display: block; width: calc(16 * var(--u)); height: calc(16 * var(--u)); }
+  .link:hover, .link:focus-visible { background: rgba(255, 255, 255, 0.16); }
+  .btn-buy {
+    padding: calc(8 * var(--u)) calc(20 * var(--u));
+    color: #15293c;
+    white-space: nowrap;
+    background: #fff6e8;
+    border: 0;
+    border-radius: calc(20 * var(--u));
+    transition: background 0.2s ease;
+  }
+  .btn-buy:hover, .btn-buy:focus-visible { background: #f6993f; }
+
+  .side-menu { position: absolute; left: calc(32 * var(--u)); top: calc(98 * var(--u)); width: calc(159 * var(--u)); }
+  .side-menu ul { display: flex; flex-direction: column; gap: calc(6 * var(--u)); margin: 0; padding: 0; list-style: none; }
+  .side-menu a {
+    display: flex;
+    align-items: flex-start;
+    gap: calc(12 * var(--u));
+    color: #fff;
+    font: 600 calc(16 * var(--u)) / calc(16 * var(--u)) Inter, Arial, sans-serif;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  /* Точки ведут от пункта к его номеру: у текущего пункта, а при наведении — у того, что под курсором */
+  .side-menu i {
+    flex: 1;
+    height: max(1.6px, calc(2 * var(--u)));
+    margin-top: calc(8.63 * var(--u));
+    background: radial-gradient(circle at calc(1 * var(--u)) 50%, #fff calc(0.95 * var(--u)), transparent calc(1.05 * var(--u))) 0 0 / calc(6 * var(--u)) 100% repeat-x;
+    visibility: hidden;
+  }
+  .side-menu b { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; letter-spacing: 0; }
+  .side-menu a.is-current i, .side-menu a:hover i, .side-menu a:focus-visible i { visibility: visible; }
+  .side-menu ul:hover a.is-current:not(:hover) i { visibility: hidden; }
+
+  /* Карточка предмета. Какая видна — решает сценарий по data-item */
+  .info {
+    position: absolute;
+    right: 7.24vw; /* 139 из 1920, как в макете: карточка всегда справа */
+    top: 50%;
+    width: calc(464 * var(--u));
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: calc(32 * var(--u));
+    color: #141b28;
+    font-family: Inter, Arial, sans-serif;
+    background: #fff6e8;
+    border-radius: calc(16 * var(--u));
+    opacity: 0;
+    transform: translate(calc(24 * var(--u)), -50%);
+    pointer-events: none;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .info.is-open { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
+  .card { display: flex; flex-direction: column; gap: calc(18 * var(--u)); }
+  .card[hidden] { display: none; }
+  .card p, .card h2, .card h3 { margin: 0; }
+  .card button { padding: 0; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  .card-head, .sheet-head, .price-row, .access { display: flex; justify-content: space-between; align-items: center; }
+  .eyebrow { font-weight: 500; font-size: calc(16 * var(--u)); line-height: calc(20 * var(--u)); }
+  .card button.close-btn { display: flex; align-items: center; justify-content: center; flex: none; width: calc(24 * var(--u)); height: calc(24 * var(--u)); background: #15293c; border-radius: calc(4 * var(--u)); transition: opacity 0.3s ease; }
+  .close-btn svg { display: block; width: calc(14 * var(--u)); height: calc(14 * var(--u)); }
+  .title-block { display: flex; flex-direction: column; gap: calc(16 * var(--u)); }
+  .card-title { font-weight: 500; font-size: calc(60 * var(--u)); line-height: calc(60 * var(--u)); transition: opacity 0.3s ease; }
+  .card-title span, .card-title em { display: block; white-space: nowrap; }
+  .card-title em { margin-top: calc(-13 * var(--u)); font-family: 'Playfair Display', Georgia, serif; font-size: calc(64 * var(--u)); line-height: calc(64 * var(--u)); font-style: italic; }
+  .desc { font-size: calc(14 * var(--u)); line-height: calc(20 * var(--u)); }
+  .desc p + p { margin-top: calc(8 * var(--u)); }
+  .benefits { display: flex; justify-content: space-between; gap: calc(8 * var(--u)); }
+  .card button.benefit { display: flex; align-items: center; gap: calc(6 * var(--u)); font-weight: 500; font-size: calc(12 * var(--u)); line-height: calc(16 * var(--u)); white-space: nowrap; }
+  .medallion { display: flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: calc(24 * var(--u)); height: calc(24 * var(--u)); border: max(1px, calc(1 * var(--u))) solid #8a7555; border-radius: 50%; }
+  .medallion svg { display: block; width: calc(14 * var(--u)); height: calc(14 * var(--u)); }
+  .expand { display: flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: calc(14 * var(--u)); height: calc(14 * var(--u)); border: max(1px, calc(1 * var(--u))) solid #141b28; border-radius: calc(2 * var(--u)); }
+  .expand svg { display: block; width: calc(8 * var(--u)); height: calc(8 * var(--u)); }
+  .bottom { display: flex; flex-direction: column; gap: calc(16 * var(--u)); }
+  .divider { height: max(1px, calc(1 * var(--u))); background: #d9cba8; }
+  .access { font-size: calc(12 * var(--u)); line-height: calc(20 * var(--u)); }
+  .access strong { font-weight: 500; }
+  .price { display: flex; flex-direction: column; gap: calc(2 * var(--u)); }
+  .price-label { font-weight: 600; font-size: calc(18 * var(--u)); line-height: calc(24 * var(--u)); }
+  .price-value { font-weight: 600; font-size: calc(22 * var(--u)); line-height: calc(28 * var(--u)); }
+  .note, .caption { font-size: calc(12 * var(--u)); line-height: calc(16 * var(--u)); color: #6b6253; }
+  .caption { text-align: center; }
+  .card button.card-cta {
+    padding: calc(16 * var(--u)) 0;
+    color: #f3e3bc;
+    font-weight: 600;
+    font-size: calc(14 * var(--u));
+    line-height: calc(20 * var(--u));
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: #15293c;
+    border-radius: calc(4 * var(--u));
+  }
+  /* Шторка: выезжает снизу по плюсу, карточка под ней притеняется */
+  .scrim { position: absolute; inset: 0; background: rgba(162, 139, 100, 0.3); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+  .sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(12 * var(--u));
+    padding: calc(24 * var(--u)) calc(32 * var(--u)) calc(32 * var(--u));
+    background: #fff6e8;
+    border-radius: calc(16 * var(--u)) calc(16 * var(--u)) 0 0;
+    box-shadow: 0 calc(-8 * var(--u)) calc(24 * var(--u)) rgba(162, 139, 100, 0.4);
+    visibility: hidden;
+    transform: translateY(110%);
+    transition: transform 0.35s ease, visibility 0s linear 0.35s;
+  }
+  .sheet.is-open { visibility: visible; transform: none; transition: transform 0.35s ease, visibility 0s; }
+  .sheet-title { display: flex; align-items: center; gap: calc(8 * var(--u)); font-weight: 500; font-size: calc(16 * var(--u)); line-height: calc(20 * var(--u)); }
+  .sheet-text { font-size: calc(14 * var(--u)); line-height: calc(20 * var(--u)); }
+  .card.sheet-open .scrim { opacity: 1; pointer-events: auto; }
+  .card.sheet-open .card-close { opacity: 0.7; }
+  .card.sheet-open .card-title { opacity: 0.9; }
+
+  /* Телефон: только самое нужное, карточка — сверху под шапкой */
+  @media (max-width: 640px) {
+    :root { --u: min(100vw / 500, 100vh / 720); }
+    .side-menu, .site-nav, .brand-sub, .header-right .link { display: none; }
+    .site-header { padding: 12px 16px; }
+    .wordmark { left: 16px; bottom: 24px; font-size: 17vw; line-height: 0.885; }
+    .info { left: 50%; right: auto; top: calc(32px + 40 * var(--u)); transform: translate(-50%, calc(24 * var(--u))); }
+    .info.is-open { transform: translate(-50%, 0); }
+  }
+  /* Парящие наушники: размер и место — в долях сцены (центр 15.08% / 48.47%, ширина 14%) */
+  .float-phones {
+    position: absolute;
+    left: 8.08%;
+    top: 34.57%;
+    width: 14%;
+    aspect-ratio: 374 / 418;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    will-change: transform;
+  }
+  /* Вращение — кадры из футажа (один полный оборот), рисуются по очереди на этом холсте */
+  .float-phones-spin {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-15deg); /* наклон наушников */
+    transition: filter 0.4s ease;
+  }
+  .float-phones:hover .float-phones-spin,
+  .float-phones:focus-visible .float-phones-spin { filter: var(--object-glow); }
+  .float-phones:focus { outline: none; }
+  /* Зона клика — сам предмет и немного вокруг, чтобы не прицеливаться */
+  .float-phones::before,
+  .float-orange::before,
+  .float-lily::before {
+    content: '';
+    position: absolute;
+    inset: -14%;
+    border-radius: 50%;
+  }
+  /* Парящий апельсин над лугом справа от девушки (центр 87.21% / 79.68%, ширина 14%) */
+  .float-orange {
+    position: absolute;
+    left: 80.21%;
+    top: 69.19%;
+    width: 14%;
+    aspect-ratio: 420 / 354;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    will-change: transform;
+  }
+  .float-orange canvas { display: block; width: 100%; height: 100%; transition: filter 0.4s ease; }
+  .float-orange:hover canvas,
+  .float-orange:focus-visible canvas { filter: var(--object-glow); }
+  .float-orange:focus { outline: none; }
+  /* Золотая лилия на верхней сфере: стоит в её центре и плывёт вместе с ней (место задаёт сценарий) */
+  .float-lily {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4.6%;
+    aspect-ratio: 1;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    will-change: transform;
+  }
+  .float-lily img { display: block; width: 100%; height: 100%; transition: filter 0.4s ease; }
+  .float-lily:hover img,
+  .float-lily:focus-visible img,
+  .float-lily.is-lit img { filter: var(--object-glow); }
+  .float-lily:focus { outline: none; }
+  /* Блик шара поверх лилии и отсвет на её золоте: только по форме иконки, место блика задаёт сценарий (как у шара) */
+  .lily-shine {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    -webkit-mask: url(layers/lily_icon.webp?v=2) center / 100% 100% no-repeat;
+    mask: url(layers/lily_icon.webp?v=2) center / 100% 100% no-repeat;
+    background:
+      radial-gradient(circle at var(--gx, 28%) var(--gy, 16%), rgb(255, 255, 252) 0%, rgba(255, 252, 240, 0.95) 4%, rgba(255, 244, 220, 0.5) 9%, rgba(255, 236, 200, 0) 17%),
+      radial-gradient(circle at var(--gx, 28%) var(--gy, 16%), rgba(255, 240, 200, 0.28) 0%, rgba(255, 240, 200, 0) 45%);
+  }
+  /* Места, по которым кликают: голова (наушники) и рука (карта) */
+  .hotspot {
+    position: absolute;
+    cursor: pointer;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+<section class="hero">
+  <div class="stage" id="stage">
+    <img class="layer" id="sky" src="layers/bg_sky.webp" alt="">
+    <img class="layer" id="trees" src="layers/bg_trees.webp" alt="">
+    <canvas class="layer" id="landscape"></canvas>
+    <div class="layer" id="spheres"></div>
+    <canvas class="layer" id="girl" width="2560" height="1440"></canvas>
+    <!-- Та же девушка, но рука с картой живая: рисует видеокарта -->
+    <canvas class="layer" id="girl-live"></canvas>
+    <!-- Наушники парят среди апельсиновых деревьев; по клику — переход в набросок -->
+    <button class="float-phones" id="spot-phones" type="button" aria-label="Наушники">
+      <canvas class="float-phones-spin" id="phones-spin" width="374" height="418"></canvas>
+    </button>
+    <!-- Апельсин парит над лугом справа и вращается; по клику — переход в набросок -->
+    <button class="float-orange" id="float-orange" type="button" aria-label="Апельсин">
+      <canvas id="orange-spin" width="420" height="354"></canvas>
+    </button>
+    <!-- Лилия на верхней сфере; по клику — переход в набросок -->
+    <button class="float-lily" id="spot-lily" type="button" aria-label="Лилия">
+      <img src="layers/lily_icon.webp?v=2" alt="">
+      <span class="lily-shine" id="lily-shine"></span>
+    </button>
+    <canvas id="sketch"></canvas>
+    <!-- Места клика: наушники и рука с картой -->
+    <button class="hotspot" id="spot-card" type="button" aria-label="Карта" style="left: 52%; top: 47%; width: 17%; height: 20%; background: none; border: 0; padding: 0;"></button>
+  </div>
+  <!-- Слой текстов поверх сцены -->
+  <div class="shade shade-top"></div>
+  <div class="shade shade-bottom"></div>
+  <h1 class="wordmark">Palazzo<br><em>dell’</em>Arte</h1>
+  <header class="site-header">
+    <div class="header-side header-left">
+      <a class="brand" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#141B28"/><path fill="currentColor" d="M11.6556 12.6864C11.6556 13.2672 11.658 13.8484 11.6628 14.43H12.3372C12.3372 13.9116 12.3444 13.3344 12.3444 12.6864C12.4398 10.0925 12.3246 7.49523 12 4.92C11.6754 7.49523 11.5602 10.0925 11.6556 12.6864ZM12 0C9.62663 0 7.30655 0.703788 5.33316 2.02236C3.35977 3.34094 1.8217 5.21508 0.913451 7.4078C0.0051994 9.60051 -0.232441 12.0133 0.230582 14.3411C0.693605 16.6689 1.83649 18.807 3.51472 20.4853C5.19295 22.1635 7.33115 23.3064 9.65892 23.7694C11.9867 24.2324 14.3995 23.9948 16.5922 23.0865C18.7849 22.1783 20.6591 20.6402 21.9776 18.6668C23.2962 16.6934 24 14.3734 24 12C24 10.4241 23.6896 8.8637 23.0866 7.4078C22.4835 5.95189 21.5996 4.62902 20.4853 3.51472C19.371 2.40041 18.0481 1.5165 16.5922 0.913445C15.1363 0.310389 13.5759 0 12 0ZM8.1348 18.438C7.93134 18.4538 7.72716 18.4185 7.54082 18.3353C7.35449 18.2521 7.19191 18.1236 7.06789 17.9615C6.94387 17.7995 6.86234 17.609 6.83071 17.4074C6.79908 17.2058 6.81837 16.9995 6.8868 16.8072C7.066 16.938 7.27159 17.0281 7.48922 17.0712C7.70685 17.1143 7.93127 17.1094 8.1468 17.0568C8.41156 16.9713 8.6496 16.8185 8.83764 16.6134C9.02568 16.4083 9.15729 16.158 9.2196 15.8868H10.0884C9.852 17.64 9.018 18.438 8.1348 18.438ZM12 21.0324C11.0871 20.5474 10.2673 19.9047 9.5784 19.134C10.304 18.1987 10.7335 17.0679 10.812 15.8868H11.6868C11.6891 17.0537 11.7939 18.2182 12 19.3668C12.2055 18.2181 12.3103 17.0537 12.3132 15.8868H13.188C13.2668 17.0676 13.6959 18.1982 14.4204 19.134C13.7319 19.9046 12.9125 20.5473 12 21.0324ZM15.8652 18.4368C14.982 18.4368 14.148 17.6388 13.9128 15.8868H14.7828C14.8461 16.1573 14.9779 16.4071 15.1656 16.612C15.3532 16.8169 15.5904 16.97 15.8544 17.0568C16.0701 17.1096 16.2948 17.1146 16.5126 17.0715C16.7305 17.0284 16.9363 16.9382 17.1156 16.8072C17.1839 16.9996 17.203 17.206 17.1711 17.4077C17.1393 17.6093 17.0575 17.7998 16.9332 17.9618C16.8089 18.1237 16.6461 18.252 16.4596 18.335C16.273 18.418 16.0687 18.453 15.8652 18.4368ZM18.0936 14.9412C18.2361 14.7221 18.3233 14.4717 18.3479 14.2114C18.3725 13.9512 18.3336 13.6889 18.2346 13.447C18.1357 13.2051 17.9796 12.9907 17.7797 12.8223C17.5798 12.6539 17.342 12.5364 17.0868 12.48C16.8032 12.4481 16.516 12.4736 16.2424 12.5551C15.9689 12.6367 15.7146 12.7725 15.4947 12.9545C15.2748 13.1365 15.0939 13.361 14.9627 13.6145C14.8315 13.868 14.7528 14.1454 14.7312 14.43H15.6384C15.734 14.5524 15.7859 14.7031 15.7859 14.8584C15.7859 15.0136 15.734 15.1644 15.6384 15.2868H8.3652C8.26874 15.1651 8.21625 15.0143 8.21625 14.859C8.21625 14.7037 8.26874 14.5529 8.3652 14.4312H9.2712C9.24977 14.1465 9.17114 13.869 9.04003 13.6153C8.90891 13.3617 8.728 13.1371 8.50811 12.9549C8.28821 12.7728 8.03386 12.6369 7.76023 12.5553C7.48661 12.4737 7.19934 12.4481 6.9156 12.48C6.66021 12.536 6.4222 12.653 6.22199 12.8212C6.02179 12.9893 5.86536 13.2035 5.76612 13.4454C5.66689 13.6873 5.62781 13.9497 5.65225 14.21C5.67668 14.4703 5.76389 14.7208 5.9064 14.94C5.15222 14.8594 4.45782 14.4921 3.9667 13.9141C3.47558 13.3361 3.22527 12.5915 3.26748 11.8341C3.30969 11.0768 3.6412 10.3647 4.19351 9.84482C4.74582 9.32496 5.47673 9.03713 6.2352 9.0408C8.5212 9.0408 10.014 11.4984 10.1412 14.4288H10.8612C10.7388 11.0496 8.9268 9.7332 8.9268 7.4904C8.9268 5.064 11.4216 2.8776 12 2.3028C12.5772 2.8776 15.072 5.0628 15.072 7.4904C15.072 9.7332 13.2612 11.0496 13.1424 14.43H13.8624C13.9908 11.4996 15.4836 9.042 17.7684 9.042C18.5551 9.0404 19.3102 9.35096 19.8682 9.90552C20.4261 10.4601 20.7412 11.2133 20.7444 12C20.7421 12.7306 20.4703 13.4346 19.9812 13.9773C19.4921 14.52 18.82 14.8632 18.0936 14.9412Z"/></svg><span class="brand-text"><span>Palazzo&nbsp;dell’Arte</span><span class="brand-sub">Музей итальянского искусства</span></span></a>
+      <nav class="site-nav" aria-label="Основная навигация">
+        <button class="link" type="button">Исследовать<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5L8 10.5L13 5.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="link" type="button">Поиск<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.25" stroke="#fff" stroke-width="1.5"/><path d="M10.5 10.5L13.5 13.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </nav>
+    </div>
+    <div class="header-side header-right">
+      <a class="link" href="#">Спланировать визит</a>
+      <a class="btn-buy" href="#">Купить билет</a>
+    </div>
+  </header>
+  <nav class="side-menu" aria-label="Разделы музея">
+    <ul>
+      <li><a href="#"><span>Музей</span><i></i><b>I</b></a></li>
+      <li><a href="#"><span>Коллекция</span><i></i><b>II</b></a></li>
+      <li><a href="#"><span>Художники</span><i></i><b>III</b></a></li>
+      <li><a href="#"><span>Выставки</span><i></i><b>IV</b></a></li>
+      <li><a href="#"><span>События</span><i></i><b>V</b></a></li>
+      <li><a href="#"><span>Экскурсии</span><i></i><b>VI</b></a></li>
+      <li><a href="#"><span>Аудиогид</span><i></i><b>VII</b></a></li>
+      <li><a href="#" class="is-current"><span>Лекции</span><i></i><b>VIII</b></a></li>
+      <li><a href="#"><span>Детям</span><i></i><b>IX</b></a></li>
+      <li><a href="#"><span>Магазин</span><i></i><b>X</b></a></li>
+      <li><a href="#"><span>Palazzo&nbsp;Pass</span><i></i><b>XI</b></a></li>
+      <li><a href="#"><span>Посетителям</span><i></i><b>XII</b></a></li>
+    </ul>
+  </nav>
+  <!-- Карточка предмета: по клику на наушники, лилию, апельсин или карту -->
+  <aside class="info" id="info" aria-live="polite">
+    <article class="card" data-item="phones" hidden>
+      <div class="card-head"><p class="eyebrow">Ваш спутник по&nbsp;музею</p><button class="close-btn card-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="title-block"><h2 class="card-title"><span>Искусство</span><em>звучит</em></h2><div class="desc"><p>У&nbsp;каждой картины есть история, которую не&nbsp;расскажет табличка на&nbsp;стене. Наденьте наушники и&nbsp;узнайте, что вдохновляло художников, какие тайны скрываются в&nbsp;деталях и&nbsp;почему эти работы продолжают волновать нас&nbsp;сегодня.</p></div></div>
+      <div class="benefits"><button class="benefit" type="button" data-sheet="0"><span class="medallion"><svg aria-hidden="true"><use href="#i-phones_a"/></svg></span><span>Слушайте в&nbsp;своём темпе</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button><button class="benefit" type="button" data-sheet="1"><span class="medallion"><svg aria-hidden="true"><use href="#i-phones_b"/></svg></span><span>Исследуйте глубже</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button></div>
+      <div class="bottom">
+        <div class="divider"></div>
+        <div class="access"><span>Доступ</span><strong>На&nbsp;вашем смартфоне · наушники понадобятся свои</strong></div>
+        <div class="divider"></div>
+        <div class="price"><div class="price-row"><span class="price-label">Стоимость</span><span class="price-value">350 ₽</span></div><p class="note">на&nbsp;весь день</p></div>
+        <button class="card-cta" type="button">Открыть аудиогид →</button>
+        <p class="caption">Можно начать в&nbsp;любом зале и&nbsp;слушать в&nbsp;удобном порядке.</p>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-phones_a"/></svg></span>Слушайте в&nbsp;своём темпе</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Останавливайте рассказ, возвращайтесь к&nbsp;любимым фрагментам и&nbsp;выбирайте только то, что интересно вам.</p></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-phones_b"/></svg></span>Исследуйте глубже</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Истории художников, детали произведений и&nbsp;контекст эпохи&nbsp;— в&nbsp;одном маршруте.</p></div>
+    </article>
+    <article class="card" data-item="lily" hidden>
+      <div class="card-head"><p class="eyebrow">Музей итальянского искусства</p><button class="close-btn card-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="title-block"><h2 class="card-title"><span>Palazzo</span><em>dell’Arte</em></h2><div class="desc"><p>Место, где прошлое не&nbsp;остаётся за&nbsp;стеклом. Здесь можно встретиться с&nbsp;искусством Италии&nbsp;— от&nbsp;образов Возрождения до&nbsp;историй людей, которые продолжают вдохновлять нас&nbsp;сегодня.</p><p>Рассматривайте детали, находите знакомые сюжеты и&nbsp;открывайте новые смыслы. Иногда для&nbsp;путешествия в&nbsp;другую эпоху достаточно одной картины.</p></div></div>
+      <div class="benefits"><button class="benefit" type="button" data-sheet="0"><span class="medallion"><svg aria-hidden="true"><use href="#i-lily_a"/></svg></span><span>Коллекция</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button><button class="benefit" type="button" data-sheet="1"><span class="medallion"><svg aria-hidden="true"><use href="#i-lily_b"/></svg></span><span>Музей как пространство</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button></div>
+      <div class="bottom">
+        <div class="divider"></div>
+        <div class="access"><span>Здесь начинается</span><strong>Ваше знакомство с&nbsp;итальянским искусством</strong></div>
+        <button class="card-cta" type="button">Узнать о&nbsp;музее →</button>
+        <p class="caption">Загляните внутрь&nbsp;— и&nbsp;найдите свою историю.</p>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-lily_a"/></svg></span>Коллекция</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Живопись, скульптура и&nbsp;истории итальянских мастеров.</p></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-lily_b"/></svg></span>Музей как пространство</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Не&nbsp;только выставки, но&nbsp;и&nbsp;лекции, встречи и&nbsp;поводы возвращаться.</p></div>
+    </article>
+    <article class="card" data-item="orange" hidden>
+      <div class="card-head"><p class="eyebrow">Магазин Palazzo&nbsp;dell’Arte</p><button class="close-btn card-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="title-block"><h2 class="card-title"><span>Искусство</span><em>домой</em></h2><div class="desc"><p>Некоторые впечатления не&nbsp;хочется оставлять в&nbsp;музее. Мы собрали вещи, которые напоминают о&nbsp;любимых картинах, солнечной Италии и&nbsp;дне, проведённом среди искусства.</p><p>Открытка для&nbsp;друга, блокнот для&nbsp;собственных идей или вещь, которая просто будет радовать каждый день.</p></div></div>
+      <div class="benefits"><button class="benefit" type="button" data-sheet="0"><span class="medallion"><svg aria-hidden="true"><use href="#i-orange_a"/></svg></span><span>Для&nbsp;себя</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button><button class="benefit" type="button" data-sheet="1"><span class="medallion"><svg aria-hidden="true"><use href="#i-orange_b"/></svg></span><span>Для&nbsp;близких</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button></div>
+      <div class="bottom">
+        <div class="divider"></div>
+        <div class="access"><span>Вдохновлено</span><strong>Итальянским искусством и&nbsp;коллекцией музея</strong></div>
+        <button class="card-cta" type="button">Перейти в&nbsp;магазин →</button>
+        <p class="caption">Маленькая деталь искусства&nbsp;— в&nbsp;вашей повседневной жизни.</p>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-orange_a"/></svg></span>Для&nbsp;себя</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Принты, аксессуары и&nbsp;предметы на&nbsp;каждый день.</p></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-orange_b"/></svg></span>Для&nbsp;близких</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Подарки с&nbsp;настроением музея&nbsp;— с&nbsp;поводом и&nbsp;без.</p></div>
+    </article>
+    <article class="card" data-item="card">
+      <div class="card-head"><p class="eyebrow">Карта друзей музея</p><button class="close-btn card-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="title-block"><h2 class="card-title"><span>Искусство</span><em>ждет</em></h2><div class="desc"><p>Для&nbsp;тех, кто любит возвращаться. Palazzo&nbsp;Pass&nbsp;— карта, с&nbsp;которой знакомство с&nbsp;музеем становится чуть ближе, а&nbsp;впечатления&nbsp;— доступнее.</p><p>Приходите на&nbsp;выставки, выбирайте подарки и&nbsp;открывайте для&nbsp;себя новые истории с&nbsp;преимуществами для&nbsp;владельцев карты.</p></div></div>
+      <div class="benefits"><button class="benefit" type="button" data-sheet="0"><span class="medallion"><svg aria-hidden="true"><use href="#i-card_a"/></svg></span><span>Скидка на&nbsp;билеты</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button><button class="benefit" type="button" data-sheet="1"><span class="medallion"><svg aria-hidden="true"><use href="#i-card_b"/></svg></span><span>Скидка в&nbsp;магазине</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button></div>
+      <div class="benefits"><button class="benefit" type="button" data-sheet="2"><span class="medallion"><svg aria-hidden="true"><use href="#i-card_c"/></svg></span><span>Специальные предложения</span><span class="expand"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></button></div>
+      <div class="bottom">
+        <div class="divider"></div>
+        <div class="price"><div class="price-row"><span class="price-label">Palazzo&nbsp;Pass</span><span class="price-value">От&nbsp;1 500 ₽</span></div><p class="note">на&nbsp;весь год</p></div>
+        <button class="card-cta" type="button">Подробнее о&nbsp;карте →</button>
+        <p class="caption">Все преимущества и&nbsp;условия&nbsp;— на&nbsp;странице карты.</p>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-card_a"/></svg></span>Скидка на&nbsp;билеты</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Больше поводов заглянуть на&nbsp;выставку&nbsp;— даже если вы уже были.</p></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-card_b"/></svg></span>Скидка в&nbsp;магазине</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Для&nbsp;подарков близким и&nbsp;вещей, которые захочется оставить себе.</p></div>
+      <div class="sheet"><div class="sheet-head"><h3 class="sheet-title"><span class="medallion"><svg aria-hidden="true"><use href="#i-card_c"/></svg></span>Специальные предложения</h3><button class="close-btn sheet-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><p class="sheet-text">Первыми узнавайте о&nbsp;событиях и&nbsp;возможностях для&nbsp;друзей музея.</p></div>
+    </article>
+  </aside>
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <symbol id="i-close" viewBox="0 0 14 14" fill="none"><path d="M2.91699 2.91699L11.0837 11.0837M11.0837 2.91699L2.91699 11.0837" stroke="#FFF6E8" stroke-width="1.16667" stroke-linecap="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 8 8" fill="none"><path d="M3.99967 1.33301V6.66634M1.33301 3.99967H6.66634" stroke="#141B28" stroke-linecap="round"/></symbol>
+    <symbol id="i-phones_a" viewBox="0 0 14 14" fill="none"><path d="M2.33301 8.16634V6.99967C2.33301 5.762 2.82467 4.57501 3.69984 3.69984C4.57501 2.82467 5.762 2.33301 6.99967 2.33301C8.23735 2.33301 9.42434 2.82467 10.2995 3.69984C11.1747 4.57501 11.6663 5.762 11.6663 6.99967V8.16634" stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round"/><path d="M3.15 8.16699H2.68333C2.16787 8.16699 1.75 8.58486 1.75 9.10033V11.0253C1.75 11.5408 2.16787 11.9587 2.68333 11.9587H3.15C3.66547 11.9587 4.08333 11.5408 4.08333 11.0253V9.10033C4.08333 8.58486 3.66547 8.16699 3.15 8.16699Z" stroke="#8A7555" stroke-width="1.16667"/><path d="M11.317 8.16699H10.8503C10.3349 8.16699 9.91699 8.58486 9.91699 9.10033V11.0253C9.91699 11.5408 10.3349 11.9587 10.8503 11.9587H11.317C11.8325 11.9587 12.2503 11.5408 12.2503 11.0253V9.10033C12.2503 8.58486 11.8325 8.16699 11.317 8.16699Z" stroke="#8A7555" stroke-width="1.16667"/></symbol>
+    <symbol id="i-phones_b" viewBox="0 0 14 14" fill="none"><path d="M6.12467 9.91634C8.21875 9.91634 9.91634 8.21875 9.91634 6.12467C9.91634 4.03059 8.21875 2.33301 6.12467 2.33301C4.03059 2.33301 2.33301 4.03059 2.33301 6.12467C2.33301 8.21875 4.03059 9.91634 6.12467 9.91634Z" stroke="#8A7555" stroke-width="1.16667"/><path d="M9.04199 9.04199L11.9587 11.9587" stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round"/></symbol>
+    <symbol id="i-lily_a" viewBox="0 0 14 14" fill="none"><g stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"><path d="M11.375 2.33301H2.625C2.14175 2.33301 1.75 2.72476 1.75 3.20801V10.7913C1.75 11.2746 2.14175 11.6663 2.625 11.6663H11.375C11.8582 11.6663 12.25 11.2746 12.25 10.7913V3.20801C12.25 2.72476 11.8582 2.33301 11.375 2.33301Z"/><path d="M1.75 9.33366L4.66667 6.41699L7 8.75033L8.75 7.00033L12.25 10.5003"/></g></symbol>
+    <symbol id="i-lily_b" viewBox="0 0 14 14" fill="none"><g stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"><path d="M1.75 5.25033L7 2.04199L12.25 5.25033H1.75Z"/><path d="M3.79167 5.25V10.5M7 5.25V10.5M10.2083 5.25V10.5M1.75 11.9583H12.25"/></g></symbol>
+    <symbol id="i-orange_a" viewBox="0 0 14 14" fill="none"><g stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"><path d="M7.00033 6.99967C8.28899 6.99967 9.33366 5.95501 9.33366 4.66634C9.33366 3.37768 8.28899 2.33301 7.00033 2.33301C5.71166 2.33301 4.66699 3.37768 4.66699 4.66634C4.66699 5.95501 5.71166 6.99967 7.00033 6.99967Z"/><path d="M2.625 12.25C2.625 11.0897 3.08594 9.97688 3.90641 9.15641C4.72688 8.33594 5.83968 7.875 7 7.875C8.16032 7.875 9.27312 8.33594 10.0936 9.15641C10.9141 9.97688 11.375 11.0897 11.375 12.25"/></g></symbol>
+    <symbol id="i-orange_b" viewBox="0 0 14 14" fill="none"><g stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"><path d="M11.3748 5.25H2.62484C2.30267 5.25 2.0415 5.51117 2.0415 5.83333V7.29167C2.0415 7.61383 2.30267 7.875 2.62484 7.875H11.3748C11.697 7.875 11.9582 7.61383 11.9582 7.29167V5.83333C11.9582 5.51117 11.697 5.25 11.3748 5.25Z"/><path d="M2.9165 7.875V12.25H11.0832V7.875M6.99984 5.25V12.25"/><path d="M7.00023 5.25005C5.25023 5.25005 4.08357 4.37505 4.37523 3.20838C4.6669 2.04171 6.4169 2.33338 7.00023 5.25005ZM7.00023 5.25005C8.75023 5.25005 9.9169 4.37505 9.62523 3.20838C9.33357 2.04171 7.58357 2.33338 7.00023 5.25005Z"/></g></symbol>
+    <symbol id="i-card_a" viewBox="0 0 14 14" fill="none"><g stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"><path d="M1.75 4.66634C1.75 4.51163 1.81146 4.36326 1.92085 4.25386C2.03025 4.14447 2.17862 4.08301 2.33333 4.08301H11.6667C11.8214 4.08301 11.9697 4.14447 12.0791 4.25386C12.1885 4.36326 12.25 4.51163 12.25 4.66634V6.12467C12.0179 6.12467 11.7954 6.21686 11.6313 6.38096C11.4672 6.54505 11.375 6.76761 11.375 6.99967C11.375 7.23174 11.4672 7.4543 11.6313 7.61839C11.7954 7.78249 12.0179 7.87467 12.25 7.87467V9.33301C12.25 9.48772 12.1885 9.63609 12.0791 9.74549C11.9697 9.85488 11.8214 9.91634 11.6667 9.91634H2.33333C2.17862 9.91634 2.03025 9.85488 1.92085 9.74549C1.81146 9.63609 1.75 9.48772 1.75 9.33301V7.87467C1.98206 7.87467 2.20462 7.78249 2.36872 7.61839C2.53281 7.4543 2.625 7.23174 2.625 6.99967C2.625 6.76761 2.53281 6.54505 2.36872 6.38096C2.20462 6.21686 1.98206 6.12467 1.75 6.12467V4.66634Z"/><path d="M8.1665 4.08301V5.24967M8.1665 6.41634V7.58301M8.1665 8.74967V9.91634"/></g></symbol>
+    <symbol id="i-card_b" viewBox="0 0 14 14" fill="none"><g stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"><path d="M3.20833 4.95801H10.7917L11.375 11.958H2.625L3.20833 4.95801Z"/><path d="M5.25 6.41634V4.08301C5.25 3.61888 5.43437 3.17376 5.76256 2.84557C6.09075 2.51738 6.53587 2.33301 7 2.33301C7.46413 2.33301 7.90925 2.51738 8.23744 2.84557C8.56563 3.17376 8.75 3.61888 8.75 4.08301V6.41634"/></g></symbol>
+    <symbol id="i-card_c" viewBox="0 0 14 14" fill="none"><path d="M7 1.75L8.16667 5.83333L12.25 7L8.16667 8.16667L7 12.25L5.83333 8.16667L1.75 7L5.83333 5.83333L7 1.75Z" stroke="#8A7555" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+</section>
+<script id="arm-shader" type="x-shader/x-fragment">
+  precision highp float;
+  varying vec2 vUv;
+  uniform sampler2D uGirl; // текущий кадр девушки
+  uniform sampler2D uMaps; // кусок вокруг руки: R — сила движения, G — передние пальцы, B — они же размытые (тень на карте)
+  uniform sampler2D uCard; // карта в 16 положениях блика, 4×4
+  uniform sampler2D uAura; // вокруг карты: R — тень, G — свечение
+  uniform vec2 uShift; // сдвиг руки в этом кадре головы
+  uniform float uTh; // наклон кисти, радианы
+  uniform vec2 uPivot;
+  uniform vec2 uCardC; // центр карты
+  uniform float uCardAng; // наклон карты (по часовой — плюс)
+  uniform vec2 uTile0;
+  uniform vec2 uTile1;
+  uniform float uMix;
+  uniform float uGlow;
+  uniform float uPx; // сколько пикселей 4K в одном пикселе холста
+  const vec2 FULL = vec2(3840.0, 2160.0);
+  const vec4 PATCH = vec4(2100.0, 952.0, 900.0, 1208.0);
+  const vec2 CARD = vec2(375.0, 236.1);
+  const vec2 AURA_CARD = vec2(376.0, 236.0);
+  const vec2 AURA = vec2(736.0, 596.0);
+  const float AURA_PAD = 180.0;
+  // свечение как у наушников (--object-glow): три тёплых слоя тени-ореола, от плотного у края к широкому мягкому.
+  // размытие слоёв в пикселях 4K: 0.5vw, 1.4vw и 2.8vw при ширине экрана 1920
+  float halo(float d, float blur) { return 1.0 / (1.0 + exp(min(3.4 * d / blur, 60.0))); }
+  vec4 over(vec4 top, vec4 under) { return top + under * (1.0 - top.a); }
+  const vec3 GLOW_1 = vec3(253.0, 219.0, 164.0) / 255.0; // цвет свечения карты — #FDDBA4 (все слои)
+  const vec3 GLOW_2 = GLOW_1;
+  const vec3 GLOW_3 = vec3(255.0, 176.0, 92.0) / 255.0; // нижний, самый широкий слой — оранжевее
+  const vec3 GLOW_A = vec3(0.8, 0.75, 0.6); // плотность слоёв
+  const float GLOW_A4 = 0.7; // плотность четвёртого слоя
+  const vec2 TILE_TEX = vec2(376.0, 237.0);
+
+  bool inside(vec2 p) { return p.x >= 0.0 && p.y >= 0.0 && p.x <= 1.0 && p.y <= 1.0; }
+  vec4 maps(vec2 q) { vec2 m = (q - PATCH.xy) / PATCH.zw; return inside(m) ? texture2D(uMaps, m) : vec4(0.0); }
+  vec2 toCard(vec2 q) {
+    vec2 d = q - uCardC;
+    float c = cos(uCardAng), s = sin(uCardAng);
+    return vec2(d.x * c + d.y * s, -d.x * s + d.y * c);
+  }
+  vec4 aura(vec2 q) { vec2 l = (toCard(q) + AURA_CARD * 0.5 + AURA_PAD) / AURA; return inside(l) ? texture2D(uAura, l) : vec4(0.0); }
+  vec4 cardTap(vec2 q) {
+    vec2 local = toCard(q);
+    vec2 l = local / CARD + 0.5;
+    // мягкий край: доля пикселя, попавшая на карту
+    vec2 edge = (0.5 * CARD - abs(local)) / uPx + 0.5;
+    float cover = clamp(min(edge.x, edge.y), 0.0, 1.0);
+    if (cover <= 0.0) return vec4(0.0);
+    vec2 lc = clamp(l, 0.5 / TILE_TEX, 1.0 - 0.5 / TILE_TEX) * 0.25;
+    return mix(texture2D(uCard, uTile0 + lc), texture2D(uCard, uTile1 + lc), uMix) * cover;
+  }
+  void main() {
+    vec2 q = vUv * FULL - uShift;
+    // кисть: поворот вокруг оси у манжеты, с силой из карты движения
+    float w = maps(q).r;
+    vec2 d = q - uPivot;
+    float c = cos(uTh), s = sin(uTh);
+    vec2 turned = uPivot + vec2(d.x * c + d.y * s, -d.x * s + d.y * c);
+    vec2 src = q + (turned - q) * w;
+    vec4 color = texture2D(uGirl, (src + uShift) / FULL);
+    float front = maps(src).g;
+    // тень карты на одежде (свет сверху-слева)
+    color.rgb *= 1.0 - 0.38 * aura(q - vec2(12.0, 18.0)).r * (1.0 - front);
+    // свечение по форме карты — под картой и под пальцами
+    // расстояние от края карты: почти прямоугольное (как сама карта), углы чуть скруглены
+    vec2 outside = max(abs(toCard(q)) - CARD * 0.5, 0.0);
+    float dist = pow(pow(outside.x, 4.0) + pow(outside.y, 4.0), 0.25);
+    float k = uGlow * (1.0 - front);
+    // по плотности как у наушников, шире на треть
+    float a1 = k * GLOW_A.x * halo(dist - 10.0, 67.0), a2 = k * GLOW_A.y * halo(dist - 10.0, 187.0), a3 = k * GLOW_A.z * halo(dist - 10.0, 373.0);
+    // четвёртый слой — плотнее под картой
+    float a4 = k * GLOW_A4 * halo(dist - 10.0, 110.0);
+    color = over(vec4(GLOW_1 * a4, a4), color);
+    color = over(vec4(GLOW_2 * a2, a2), over(vec4(GLOW_3 * a3, a3), color));
+    color = over(vec4(GLOW_1 * a1, a1), color);
+    // карта: четыре пробы на пиксель — ровные края; передние пальцы лежат поверх
+    float o = uPx * 0.25;
+    vec4 card = (cardTap(q + vec2(-o, -o)) + cardTap(q + vec2(o, -o)) + cardTap(q + vec2(-o, o)) + cardTap(q + vec2(o, o))) * 0.25;
+    card *= 1.0 - front;
+    float fingerShadow = 1.0 - 0.4 * maps(src - vec2(9.0, 12.0)).b;
+    gl_FragColor = vec4(card.rgb * fingerShadow + color.rgb * (1.0 - card.a), card.a + color.a * (1.0 - card.a));
+  }
+</script>
+<script id="landscape-shader" type="x-shader/x-fragment">
+  precision highp float;
+  uniform sampler2D uTree;
+  uniform sampler2D uMap; // красный — глубина, зелёный — листва, синий — цветы и трава
+  uniform sampler2D uOrange; // красный и зелёный — точка на мандарине, синий — сам мандарин
+  uniform sampler2D uEnv; // весь пейзаж: его и отражают шары
+  uniform sampler2D uPainted; // нарисованные шары на своих местах
+  uniform vec3 uSpheres[5]; // центр и радиус шара в долях холста
+  uniform vec2 uMotion[5]; // насколько шар сейчас сдвинут от своего места
+  uniform vec2 uPointer;
+  uniform float uTime;
+  uniform float uNear;
+  varying vec2 vUv;
+
+  const float OVERSCAN = 1.08; // холст больше кадра на запас --overscan
+  const float ASPECT = 16.0 / 9.0;
+  const float HORIZON = 0.55; // линия горизонта на картинке пейзажа
+  const float REFLECTION_GAIN = 6.0; // как сильно отражение реагирует на движение шара
+  const float FLOW_GAIN = 4.0; // как сильно нарисованный рисунок перетекает при движении шара
+  const float REFLECTION_AMOUNT = 0.5; // сколько отражения лежит поверх нарисованного шара
+  const vec3 BALL_GOLD = vec3(1.0, 0.92, 0.78); // золотой оттенок шаров: чем ниже последние два числа, тем золотее
+  const vec3 SPECULAR_GOLD = vec3(1.0, 0.9, 0.68); // цвет блика на шарах
+  const float PALACE_AIR = 0.0002; // как сильно дрожит воздух перед дворцом
+  const float PALACE_LIGHT = 0.18; // сила света, который проходит по башням
+  const float PALACE_HAZE = 0.28; // плотность дымки перед дворцом
+
+  float noise(vec2 p) {
+    vec2 cell = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+    float b = fract(sin(dot(cell + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);
+    float c = fract(sin(dot(cell + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+    float d = fract(sin(dot(cell + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  void main() {
+    float depth = texture2D(uMap, vUv).r;
+    vec2 shift = vec2(uPointer.x, uPointer.y * 0.4 * ASPECT) * depth * uNear / OVERSCAN;
+    vec2 uv = vUv + shift;
+    vec4 map = texture2D(uMap, uv);
+    vec2 p = uv * vec2(ASPECT, 1.0);
+    float t = uTime;
+    float gust = 0.6 + 0.4 * sin(t * 0.5 + p.x * 2.0);
+
+    // Ветви качаются целиком, вместе с мандаринами
+    vec2 sway = vec2(sin(t * 0.9 + p.x * 7.0 + p.y * 5.0), cos(t * 0.7 + p.x * 6.0) * 0.5) * 0.0016 * map.g * gust;
+    vec4 orange = texture2D(uOrange, uv + sway);
+    float fruit = orange.b;
+
+    // Мелкая дрожь листьев; мандарины она не трогает
+    vec2 shimmer = vec2(
+      sin(p.y * 140.0 + t * 2.6 + sin(p.x * 90.0 + t * 1.1) * 2.0),
+      cos(p.x * 130.0 + t * 2.1 + sin(p.y * 70.0) * 2.0)
+    ) * 0.0009 * map.g * gust * (1.0 - fruit);
+
+    // Цветы и трава колышутся только по горизонтали
+    float breeze = 0.6 + 0.4 * sin(t * 0.8 + p.x * 3.0);
+    vec2 grass = vec2(sin(p.x * 70.0 + t * 1.7 + sin(p.y * 40.0) * 2.0), 0.0) * 0.0010 * map.b * breeze * (1.0 - map.g);
+
+    // Дворец: зона на картинке, где работают воздух, свет и дымка
+    float palaceX = smoothstep(0.625, 0.665, uv.x) * (1.0 - smoothstep(0.835, 0.875, uv.x));
+    float palace = palaceX * smoothstep(0.27, 0.30, uv.y) * (1.0 - smoothstep(0.53, 0.56, uv.y));
+
+    // Воздух дрожит волнами снизу вверх, у земли сильнее
+    vec2 air = vec2(sin(uv.y * 170.0 - t * 1.5 + sin(uv.x * 46.0 + t * 0.4) * 1.6), 0.0)
+      * PALACE_AIR * mix(0.35, 1.0, smoothstep(0.28, 0.53, uv.y)) * palace;
+
+    vec4 color = texture2D(uTree, uv + sway + shimmer + grass + air);
+
+    // Блик идёт по мандарину за курсором, противоположная сторона чуть темнеет
+    vec2 local = orange.rg * 2.0 - 1.0;
+    vec2 spot = vec2(-0.22, -0.3) + uPointer * vec2(0.38, 0.22);
+    float dist = distance(local, spot);
+    float shine = exp(-dist * dist * 7.0) * fruit * color.a;
+    float shade = smoothstep(0.35, 1.3, dist) * fruit;
+    color.rgb *= 1.0 - shade * 0.22;
+    color.rgb += vec3(1.0, 0.72, 0.38) * shine * 0.3;
+
+    // По башням медленно проходит свет, холм он не трогает
+    float sweep = pow(0.5 + 0.5 * sin(uv.x * 55.0 - t * 0.45 + sin(uv.y * 9.0 + t * 0.2)), 8.0);
+    color.rgb += vec3(1.0, 0.82, 0.55) * sweep * PALACE_LIGHT * palace * color.a * (1.0 - smoothstep(0.515, 0.535, uv.y));
+
+    // Перед дворцом плывут облачка дымки: у подножия гуще, у середины башен реже
+    float hazeBand = max(
+      smoothstep(0.43, 0.50, uv.y) * (1.0 - smoothstep(0.54, 0.60, uv.y)),
+      smoothstep(0.33, 0.38, uv.y) * (1.0 - smoothstep(0.40, 0.46, uv.y)) * 0.55
+    ) * palaceX;
+    if (hazeBand > 0.0) {
+      vec2 hazeUv = vec2(uv.x * ASPECT * 7.0 - t * 0.035, uv.y * 22.0 + t * 0.015);
+      float mist = noise(hazeUv) * 0.55 + noise(hazeUv * 2.1 + 3.7) * 0.3 + noise(hazeUv * 4.3 + 8.1) * 0.15;
+      float haze = smoothstep(0.38, 0.72, mist) * hazeBand * PALACE_HAZE;
+      color = color * (1.0 - haze) + vec4(1.0, 0.93, 0.8, 1.0) * haze;
+    }
+
+    // Шары: нарисованный рисунок перетекает внутри, поверх него ложится отражение пейзажа
+    for (int i = 0; i < 5; i++) {
+      vec3 sphere = uSpheres[i];
+      vec2 size = vec2(sphere.z, sphere.z * ASPECT);
+      vec2 ball = (vUv - sphere.xy) / size;
+      float radial = dot(ball, ball);
+      if (radial >= 1.05) continue;
+
+      vec2 home = sphere.xy - uMotion[i];
+      float cover = texture2D(uPainted, home + ball * size).a; // контур остаётся как на рисунке
+      if (cover <= 0.0) continue;
+
+      float r = sqrt(min(radial, 1.0));
+      float inner = 1.0 - smoothstep(0.55, 1.0, r); // кромка шара не плывёт
+      vec2 drift = vec2(
+        sin(ball.y * 3.0 + t * 0.7 + float(i)),
+        cos(ball.x * 3.0 + t * 0.55 + float(i) * 2.0)
+      ) * 0.05;
+      vec4 paint = texture2D(uPainted, home + (ball + (uMotion[i] * FLOW_GAIN + drift) * inner) * size);
+      vec3 painted = paint.a > 0.01 ? paint.rgb / paint.a : texture2D(uPainted, home + ball * size).rgb / cover;
+
+      vec3 normal = vec3(ball.x, -ball.y, sqrt(max(0.0, 1.0 - radial)));
+      vec3 ray = vec3(2.0 * normal.z * normal.x, 2.0 * normal.z * normal.y, 2.0 * normal.z * normal.z - 1.0);
+      // Чем ниже шар, тем выше в нём линия горизонта и тем больше в отражении земли
+      float elevation = ray.y + 0.14 - (sphere.y - 0.15) * 0.5 - uMotion[i].y * REFLECTION_GAIN + drift.y * 0.5;
+      float along = sign(elevation) * pow(abs(elevation), 0.7);
+      vec2 envUv = vec2(
+        0.5 + (sphere.x - 0.5) * 0.2 + ray.x * 0.36 + uMotion[i].x * REFLECTION_GAIN + drift.x * 0.5,
+        along > 0.0 ? HORIZON - along * HORIZON : HORIZON - along * (1.0 - HORIZON)
+      );
+      vec3 mirror = texture2D(uEnv, clamp(envUv, 0.0, 1.0)).rgb;
+
+      // Отражение ложится как свет: тёмные места рисунка не гаснут, светлые остаются
+      vec3 screen = 1.0 - (1.0 - painted) * (1.0 - mirror);
+      vec3 ballColor = mix(painted, mix(mirror, screen, 0.55), REFLECTION_AMOUNT * inner);
+      vec3 light = normalize(vec3(-0.35 + uPointer.x * 0.55, 0.55 - uPointer.y * 0.35, 0.8));
+      float spec = pow(max(dot(normal, normalize(light + vec3(0.0, 0.0, 1.0))), 0.0), 140.0);
+      ballColor *= BALL_GOLD;
+      ballColor += SPECULAR_GOLD * spec * 0.9;
+
+      color = color * (1.0 - cover) + vec4(ballColor, 1.0) * cover;
+    }
+
+    gl_FragColor = color;
+  }
+</script>
+<script id="sketch-shader" type="x-shader/x-fragment">
+  precision highp float;
+  uniform sampler2D uSky; // слои наброска сангиной — те же, что у цветной картины
+  uniform sampler2D uTrees;
+  uniform sampler2D uPainted; // шары сангиной на своих местах
+  uniform sampler2D uMap; // та же карта, что у цветного пейзажа: глубина, листва, трава
+  uniform sampler2D uGirl;
+  uniform vec3 uSpheres[5]; // где сейчас шары — как у цветного пейзажа
+  uniform vec2 uMotion[5];
+  uniform vec2 uPointer;
+  uniform float uTime;
+  uniform float uNear;
+  uniform sampler2D uGrowth; // карта роста: поле вдвое больше сцены, капля в его центре
+  uniform vec2 uGrowthSize; // размер карты роста в пикселях
+  uniform vec2 uSpot; // откуда растекается краска, в долях сцены
+  uniform float uProgress; // докуда дошло первое пятно (набросок) по карте роста
+  uniform float uProgress2; // докуда дошло второе пятно (снова цветная картина)
+  uniform vec4 uSkyRect; // где лежат слои на сцене: x, y, ширина, высота
+  uniform vec4 uGirlRect;
+  uniform float uAspect;
+  varying vec2 vUv;
+
+  const float EDGE_WOBBLE = 0.012; // плавные изгибы края
+  const float EDGE_FIBERS = 0.003; // мелкие затёки по волокнам бумаги
+  const float FEATHER = 0.035; // ширина мокрой полупрозрачной полосы по краю (около 75 пикселей на большом экране)
+  const float PIGMENT = 0.6; // насколько неровно ложится краска в этой полосе
+  const float WATER_SHIFT = 0.012; // насколько картинка плывёт у края, как под водой
+  const float WET_RIM = 0.12; // едва заметная кайма по краю
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.03 + 7.1; a *= 0.5; }
+    return v;
+  }
+
+  vec4 layer(sampler2D image, vec4 rect, vec2 pos) {
+    vec2 uv = (pos - rect.xy) / rect.zw;
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(0.0);
+    return texture2D(image, uv);
+  }
+
+  // Деревья и шары сангиной движутся так же, как цветные: глубина по карте, ветер, покачивание шаров
+  vec4 landscape(vec2 pos) {
+    const float OVERSCAN = 1.08;
+    const float FLOW_GAIN = 4.0;
+    vec2 base = (pos + 0.04) / OVERSCAN; // точка на холсте пейзажа: он на 8% больше сцены
+    float depth = texture2D(uMap, base).r;
+    vec2 uv = base + vec2(uPointer.x, uPointer.y * 0.4 * uAspect) * depth * uNear / OVERSCAN;
+    vec4 map = texture2D(uMap, uv);
+    vec2 p = uv * vec2(uAspect, 1.0);
+    float t = uTime;
+    float gust = 0.6 + 0.4 * sin(t * 0.5 + p.x * 2.0);
+    vec2 sway = vec2(sin(t * 0.9 + p.x * 7.0 + p.y * 5.0), cos(t * 0.7 + p.x * 6.0) * 0.5) * 0.0016 * map.g * gust;
+    vec2 shimmer = vec2(
+      sin(p.y * 140.0 + t * 2.6 + sin(p.x * 90.0 + t * 1.1) * 2.0),
+      cos(p.x * 130.0 + t * 2.1 + sin(p.y * 70.0) * 2.0)
+    ) * 0.0009 * map.g * gust;
+    float breeze = 0.6 + 0.4 * sin(t * 0.8 + p.x * 3.0);
+    vec2 grass = vec2(sin(p.x * 70.0 + t * 1.7 + sin(p.y * 40.0) * 2.0), 0.0) * 0.0010 * map.b * breeze * (1.0 - map.g);
+    vec4 color = texture2D(uTrees, uv + sway + shimmer + grass);
+
+    for (int i = 0; i < 5; i++) {
+      vec3 sphere = uSpheres[i];
+      vec2 size = vec2(sphere.z, sphere.z * uAspect);
+      vec2 ball = (base - sphere.xy) / size;
+      float radial = dot(ball, ball);
+      if (radial >= 1.05) continue;
+      vec2 home = sphere.xy - uMotion[i];
+      float cover = texture2D(uPainted, home + ball * size).a;
+      if (cover <= 0.0) continue;
+      float inner = 1.0 - smoothstep(0.55, 1.0, sqrt(min(radial, 1.0)));
+      vec2 drift = vec2(
+        sin(ball.y * 3.0 + t * 0.7 + float(i)),
+        cos(ball.x * 3.0 + t * 0.55 + float(i) * 2.0)
+      ) * 0.05;
+      vec4 paint = texture2D(uPainted, home + (ball + (uMotion[i] * FLOW_GAIN + drift) * inner) * size);
+      vec3 painted = paint.a > 0.01 ? paint.rgb / paint.a : texture2D(uPainted, home + ball * size).rgb / cover;
+      color = color * (1.0 - cover) + vec4(painted, 1.0) * cover;
+    }
+    return color;
+  }
+
+  // Точное значение карты роста: красный — старшая часть числа, зелёный — младшая.
+  // Соседние точки смешиваем сами, иначе край пятна идёт ступеньками
+  float growthTexel(vec2 cell) {
+    vec4 t = texture2D(uGrowth, (cell + 0.5) / uGrowthSize);
+    return (t.r * 65280.0 + t.g * 255.0) / 65535.0;
+  }
+  float growth(vec2 g) {
+    if (g.x < 0.0 || g.y < 0.0 || g.x > 1.0 || g.y > 1.0) return 1.0;
+    vec2 px = g * uGrowthSize - 0.5;
+    vec2 cell = floor(px);
+    vec2 f = px - cell;
+    return mix(
+      mix(growthTexel(cell), growthTexel(cell + vec2(1.0, 0.0)), f.x),
+      mix(growthTexel(cell + vec2(0.0, 1.0)), growthTexel(cell + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
+  }
+
+  // Сколько значения карты приходится на один пиксель экрана: по нему край делаем тонким
+  float pixelSize(float value) {
+  #ifdef HAS_DERIVATIVES
+    return max(fwidth(value), 1e-5);
+  #else
+    return 0.0015;
+  #endif
+  }
+
+  void main() {
+    vec2 p = vUv * vec2(uAspect, 1.0);
+    // Край пятна неровный: плавные изгибы и мелкие затёки по волокнам бумаги
+    float edge1 = (fbm(p * 5.0) - 0.5) * EDGE_WOBBLE + (fbm(p * 70.0) - 0.5) * EDGE_FIBERS;
+    float edge2 = (fbm(p * 5.0 + 23.7) - 0.5) * EDGE_WOBBLE + (fbm(p * 70.0 + 41.3) - 0.5) * EDGE_FIBERS;
+
+    // Карта роста покрывает поле вдвое больше сцены, её центр — в точке клика
+    vec2 g = (vUv - uSpot) * 0.5 + 0.5;
+    float grow1 = growth(g);
+    // Второе пятно растёт из той же точки и открывает цветную картину.
+    // Карту берём повёрнутой, чтобы пятно не повторяло первое
+    float grow2 = growth(1.0 - g);
+    float wet = uProgress - (grow1 + edge1); // больше нуля — набросок уже здесь
+    float wet2 = uProgress2 - (grow2 + edge2); // больше нуля — тут снова картина
+
+    // Ширина мокрой полосы в единицах карты: считаем по самой карте, без шума, чтобы полоса была ровной
+    float band1 = FEATHER;
+    float band2 = FEATHER;
+    // В полосе краска ложится неровно, пятнами пигмента: где-то гуще, где-то прозрачнее
+    float pigment = (fbm(p * 14.0 + 3.1) - 0.5) * PIGMENT;
+    float alpha = smoothstep(0.0, 1.0, wet / band1 + pigment);
+    alpha *= 1.0 - smoothstep(0.0, 1.0, wet2 / band2 + pigment);
+    if (alpha <= 0.0) { gl_FragColor = vec4(0.0); return; }
+
+    // У края картинка плывёт, как под водой: чем ближе к границе, тем сильнее
+    float near1 = 1.0 - smoothstep(0.0, 1.5, abs(wet) / band1);
+    float near2 = uProgress2 > 0.0 ? 1.0 - smoothstep(0.0, 1.5, abs(wet2) / band2) : 0.0;
+    vec2 flow = vec2(fbm(p * 8.0 + uProgress * 3.0), fbm(p * 8.0 + 17.0 - uProgress * 3.0)) - 0.5;
+    vec2 shift = flow * WATER_SHIFT * max(near1, near2) / vec2(uAspect, 1.0);
+
+    vec2 pos = vUv + shift;
+    vec4 sky = layer(uSky, uSkyRect, pos);
+    vec4 land = landscape(pos);
+    vec4 girl = layer(uGirl, uGirlRect, pos);
+    vec3 color = girl.rgb + (land.rgb + sky.rgb * (1.0 - land.a)) * (1.0 - girl.a);
+    // Едва заметная кайма у самого края, как у высыхающей акварели
+    float rim = 1.0 - smoothstep(0.0, 0.35, wet / band1);
+    color *= 1.0 - rim * alpha * WET_RIM;
+    gl_FragColor = vec4(color * alpha, alpha);
+  }
+</script>
+<script>
+  const FRAME_COUNT = 46;
+  const EASE = 0.1; // чем меньше, тем мягче голова догоняет курсор
+  const PARALLAX_EASE = 0.06;
+
+  // Насколько слой сдвигается за курсором, в долях ширины сцены: чем ближе слой, тем больше
+  const DEPTH = { sky: 0.003, trees: 0.012, girl: 0.012 };
+  const LANDSCAPE_NEAR = 0.015; // сдвиг самого близкого плана пейзажа
+  const LANDSCAPE_MAX_WIDTH = 1440; // чем больше, тем тяжелее видеокарте
+  const LANDSCAPE_FPS = 30; // пейзаж рисуем реже экрана: ветер и так плавный
+  const BREATH = { period: 3800, scale: 0.004 };
+
+  // Переход в набросок: по клику голова встаёт прямо, потом из места клика растекается краска
+  const FREEZE_FRAME = 22; // кадр, по которому нарисован набросок
+  // Переход, в миллисекундах: первое пятно открывает набросок и доходит до краёв экрана;
+  // как только набросок занял весь экран, из той же точки растёт второе пятно и открывает цветную картину.
+  // gap — через сколько после старта первого пятна стартует второе (равен duration — сразу после)
+  const PAINT = { duration: 1100, gap: 1100 };
+  const SKETCH_MAX_WIDTH = 1920; // ширина холста наброска: больше — чётче, но тяжелее
+
+  // Шары: положение и ширина в процентах кадра; float — размах покачивания, period — его скорость
+  const SPHERES = [
+    { file: 'sphere_1', left: 70.169, top: 14.584, width: 10.208, depth: 0.03, float: 0.008, period: 6200, phase: 0 },
+    { file: 'sphere_2', left: 21.12, top: 18.981, width: 5.547, depth: 0.022, float: 0.006, period: 5200, phase: 1.7 },
+    { file: 'sphere_3', left: 32.604, top: 8.426, width: 3.724, depth: 0.014, float: 0.005, period: 4600, phase: 3.1 },
+    { file: 'sphere_4', left: 64.896, top: 20.324, width: 2.813, depth: 0.018, float: 0.005, period: 4100, phase: 4.4 },
+    { file: 'sphere_5', left: 69.167, top: 36.157, width: 2.005, depth: 0.01, float: 0.004, period: 3700, phase: 5.5 },
+  ];
+
+  // Парящие наушники: float — размах покачивания (доля ширины), period — время одного качания в секундах,
+  // depth — сдвиг за курсором (ближе деревьев), turnTime — за сколько секунд проходит всё видео вращения (в оригинале 5)
+  const FLOAT_PHONES = { float: 0.006, period: 5.6, depth: 0.02, turnTime: 8 };
+  // Лист кадров вращения: 120 кадров видео, которое замыкается само на себя; 12 в ряд, каждый 300×335
+  const SPIN = { src: 'layers/headphones_spin.webp?v=4', frames: 120, columns: 12, w: 374, h: 418 };
+
+  const stage = document.getElementById('stage');
+  const floatPhones = document.getElementById('spot-phones');
+  const spinCanvas = document.getElementById('phones-spin');
+  const spinCtx = spinCanvas.getContext('2d');
+  // Вращение по листу кадров: между соседними кадрами — плавное наложение, чтобы при медленном вращении не дёргалось
+  function makeSpinner(canvasEl, sheetInfo, turnTime) {
+    const context = canvasEl.getContext('2d');
+    const sheet = new Image();
+    sheet.src = sheetInfo.src;
+    const { frames, columns, w, h } = sheetInfo;
+    const tile = (n) => [(n % columns) * w, Math.floor(n / columns) * h, w, h];
+    // settle 0..1: когда предмет замирает, смесь двух кадров стягивается к ближайшему — без двойного контура
+    return function draw(time, settle = 0) {
+      if (!sheet.complete || !sheet.naturalWidth) return;
+      const position = (time / 1000 / turnTime * frames) % frames;
+      const a = Math.floor(position), b = (a + 1) % frames;
+      let mix = position - a;
+      if (settle > 0) mix = mix < 0.5 ? mix * (1 - settle) : 1 - (1 - mix) * (1 - settle);
+      context.clearRect(0, 0, w, h);
+      context.globalAlpha = 1;
+      context.drawImage(sheet, ...tile(a), 0, 0, w, h);
+      context.globalAlpha = mix;
+      context.drawImage(sheet, ...tile(b), 0, 0, w, h);
+      context.globalAlpha = 1;
+    };
+  }
+  const drawPhonesSpin = makeSpinner(spinCanvas, SPIN, FLOAT_PHONES.turnTime);
+
+  // Парящий апельсин: те же настройки, что у наушников; turnTime — секунд на полный оборот (в видео ~4)
+  const FLOAT_ORANGE = { float: 0.005, period: 6.4, depth: 0.03, turnTime: 10, phase: 2 };
+  // Лист кадров: 93 кадра ровного оборота (разгон и остановка из видео убраны), 10 в ряд, каждый 420×354
+  const ORANGE_SPIN = { src: 'layers/orange_spin.webp?v=1', frames: 93, columns: 10, w: 420, h: 354 };
+  const floatOrange = document.getElementById('float-orange');
+  const drawOrangeSpin = makeSpinner(document.getElementById('orange-spin'), ORANGE_SPIN, FLOAT_ORANGE.turnTime);
+  function drawSpin(time, settle) { drawPhonesSpin(time, settle); drawOrangeSpin(time, settle); }
+  const sketch = document.getElementById('sketch');
+  const canvas = document.getElementById('girl');
+  const ctx = canvas.getContext('2d');
+  const layers = {
+    sky: document.getElementById('sky'),
+    trees: document.getElementById('trees'),
+  };
+  const spheres = SPHERES.map((sphere) => {
+    const box = document.createElement('div');
+    box.className = 'sphere';
+    box.style.left = `${sphere.left}%`;
+    box.style.top = `${sphere.top}%`;
+    box.style.width = `${sphere.width}%`;
+    const img = new Image();
+    img.alt = '';
+    img.src = `layers/${sphere.file}.webp`;
+    const glint = document.createElement('div');
+    glint.className = 'glint';
+    box.append(img, glint);
+    document.getElementById('spheres').append(box);
+    return { ...sphere, box, img, glint };
+  });
+
+  // Блик на шаре идёт за курсором; положение — доля от размера блика
+  function placeGlint(glint, x, y) {
+    const left = (0.35 + x * 0.22 - 0.275) / 0.55 * 100;
+    const top = (0.3 + y * 0.14 - 0.275) / 0.55 * 100;
+    glint.style.transform = `translate(${left}%, ${top}%)`;
+  }
+  spheres.forEach((sphere) => placeGlint(sphere.glint, 0, 0));
+  const frames = [];
+  const bitmaps = [];
+  let pointer = 0; // положение курсора: -1 слева, 1 справа
+  let pointerY = 0;
+  let parallaxX = 0;
+  let glintX = 0; // блик на карте, плавно за курсором
+  let parallaxY = 0;
+  let current = (FRAME_COUNT - 1) / 2;
+  let drawn = -1;
+  let lastLandscape = -Infinity;
+
+  function load(img) {
+    return img.complete ? Promise.resolve() : new Promise((resolve) => {
+      img.addEventListener('load', resolve);
+      img.addEventListener('error', resolve);
+    });
+  }
+
+  for (let i = 0; i < FRAME_COUNT; i++) {
+    const img = new Image();
+    img.src = `girl/g_${String(i).padStart(3, '0')}.webp?v=3`; // кадры 2560×1440
+    frames.push(img);
+    // Распаковываем кадр заранее: иначе процессор делает это при каждом движении мыши
+    if ('createImageBitmap' in window) {
+      load(img)
+        .then(() => (img.naturalWidth ? createImageBitmap(img) : null))
+        .then((bitmap) => { if (bitmap) bitmaps[i] = bitmap; })
+        .catch(() => {});
+    }
+  }
+
+  // Показываем сцену, когда готовы фон и средний кадр; остальные кадры догружаются сами
+  const firstFrame = frames[Math.round(current)];
+  const images = [...Object.values(layers), ...spheres.map((sphere) => sphere.img), firstFrame];
+  Promise.all(images.map(load)).then(() => {
+    stage.classList.add('is-ready');
+  });
+
+  // Где сейчас шары: тот же сдвиг и покачивание, что были у шаров-картинок, но в долях холста.
+  // Одна формула и для цветного пейзажа, и для наброска, чтобы шары совпадали
+  function placeSpheres(time, x, y, sphereData, motionData) {
+    const OVERSCAN = 1.08;
+    const ASPECT = 16 / 9;
+    SPHERES.forEach((sphere, i) => {
+      const float = Math.sin(objectsClock / sphere.period * Math.PI * 2 + sphere.phase) * sphere.float;
+      const dx = -x * sphere.depth / OVERSCAN;
+      const dy = (-y * sphere.depth * 0.4 + float) * ASPECT / OVERSCAN;
+      sphereData[i * 3] = (sphere.left + sphere.width / 2) / 100 + dx;
+      sphereData[i * 3 + 1] = (sphere.top + sphere.width * ASPECT / 2) / 100 + dy;
+      sphereData[i * 3 + 2] = sphere.width / 200;
+      motionData[i * 2] = dx;
+      motionData[i * 2 + 1] = dy;
+    });
+  }
+
+  // Пейзаж на WebGL: у каждого дерева своя глубина, плюс ветер и блики.
+  // Если WebGL недоступен, остаётся обычная картинка деревьев.
+  function createLandscape(treeImage) {
+    const view = document.getElementById('landscape');
+    const gl = view.getContext('webgl', { premultipliedAlpha: true });
+    if (!gl) return Promise.resolve(null);
+
+    const compile = (type, source) => {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+      return shader;
+    };
+    const texture = (unit, image, premultiply) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiply);
+      gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    };
+    const mapImage = new Image();
+    mapImage.src = 'layers/map_depth.png';
+    const orangeImage = new Image();
+    orangeImage.src = 'layers/map_oranges.png';
+    const envImage = new Image();
+    envImage.src = 'layers/env.webp';
+    const paintedImage = new Image();
+    paintedImage.src = 'layers/bg_spheres.webp?v=3';
+
+    return Promise.all([treeImage, mapImage, orangeImage, envImage, paintedImage].map(load)).then(() => {
+      const program = gl.createProgram();
+      gl.attachShader(program, compile(gl.VERTEX_SHADER, `
+        attribute vec2 aPosition;
+        varying vec2 vUv;
+        void main() {
+          vUv = vec2(aPosition.x * 0.5 + 0.5, 0.5 - aPosition.y * 0.5);
+          gl_Position = vec4(aPosition, 0.0, 1.0);
+        }
+      `));
+      gl.attachShader(program, compile(gl.FRAGMENT_SHADER, document.getElementById('landscape-shader').textContent));
+      gl.linkProgram(program);
+      gl.useProgram(program);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const position = gl.getAttribLocation(program, 'aPosition');
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+      texture(0, treeImage, true);
+      texture(1, mapImage, false);
+      texture(2, orangeImage, false);
+      gl.uniform1i(gl.getUniformLocation(program, 'uTree'), 0);
+      gl.uniform1i(gl.getUniformLocation(program, 'uMap'), 1);
+      gl.uniform1i(gl.getUniformLocation(program, 'uOrange'), 2);
+      texture(3, envImage, false);
+      gl.uniform1i(gl.getUniformLocation(program, 'uEnv'), 3);
+      texture(4, paintedImage, true);
+      gl.uniform1i(gl.getUniformLocation(program, 'uPainted'), 4);
+      gl.uniform1f(gl.getUniformLocation(program, 'uNear'), LANDSCAPE_NEAR);
+      const uPointer = gl.getUniformLocation(program, 'uPointer');
+      const uTime = gl.getUniformLocation(program, 'uTime');
+      const uSpheres = gl.getUniformLocation(program, 'uSpheres');
+      const uMotion = gl.getUniformLocation(program, 'uMotion');
+      const sphereData = new Float32Array(SPHERES.length * 3);
+      const motionData = new Float32Array(SPHERES.length * 2);
+
+      return (time, x, y) => {
+        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.min(view.clientWidth * ratio, LANDSCAPE_MAX_WIDTH) | 0;
+        const height = Math.round(width * 9 / 16);
+        if (view.width !== width || view.height !== height) {
+          view.width = width;
+          view.height = height;
+          gl.viewport(0, 0, width, height);
+        }
+        placeSpheres(time, x, y, sphereData, motionData);
+        gl.uniform3fv(uSpheres, sphereData);
+        gl.uniform2fv(uMotion, motionData);
+        gl.uniform2f(uPointer, x, y);
+        gl.uniform1f(uTime, time / 1000);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      };
+    });
+  }
+
+  let drawLandscape = null;
+  createLandscape(layers.trees).then((render) => {
+    if (!render) return;
+    render(0, 0, 0);
+    drawLandscape = render;
+    layers.trees.style.visibility = 'hidden';
+    document.getElementById('spheres').style.visibility = 'hidden'; // шары теперь рисует пейзаж
+  }).catch((error) => console.warn('Пейзаж показан без эффектов:', error.message));
+
+  // Живая рука с картой. Видеокарта берёт текущий кадр девушки и чуть качает кисть: локоть и рукав стоят,
+  // к пальцам движение растёт. В руку кладёт карту автора со светом и бликом (блик идёт за наклоном),
+  // под карту — свечение по её форме, когда карта выбрана. Всё считается в пикселях 4K-кадра (3840×2160).
+  const ARM = {
+    amplitude: 0.9, // наклон кисти в обе стороны, в градусах
+    period: 5, // секунд на одно качание туда-обратно
+    pivot: [2590, 1720], // ось у манжеты: здесь движения нет
+    still: 1720, tip: 1100, // от этой высоты движение начинается и к этой становится полным
+    card: [2298, 1218], cardAngle: -10, // центр карты и её наклон
+    glow: 1, // сила свечения под картой (1 — как у наушников)
+  };
+  // Насколько рука сдвинута в каждом кадре поворота головы относительно кадра 22 (в пикселях кадра 2560×1440, с долей пикселя)
+  const HAND_SHIFT = [-3.82,-2.78,-3.77,-2.79,-3.75,-2.78,-3.15,-2.37,-3.11,-2.31,-3.08,-2.24,-3.11,-2.17,-3.13,-2.07,-3.13,-1.99,-3.16,-1.87,-3.14,-1.8,-3.21,-1.69,-3.19,-1.58,-2.65,-1.5,-2.61,-1.4,-2.57,-1.2,-2.2,-0.83,-2.13,-0.73,-1.96,-0.68,-1.17,-0.22,-0.85,-0.23,-0.39,0.15,0.04,0.03,0.72,0.24,1.17,0.1,1.57,0.44,2.02,0.26,2.61,0.48,3.24,0.24,4.05,0.54,4.03,0.34,4.22,0.26,4.53,0.44,4.86,0.23,5.58,0.23,6.07,-0.02,6.46,-0.31,6.87,-0.29,6.69,-0.66,7.14,-1.02,7.72,-1.12,8.16,-1.47,8.12,-1.91,8.57,-1.94,9.03,-2.4,8.95,-2.86];
+  const ARM_MAX_WIDTH = 2560;
+  const GLINT_ROCK = 0.15; // доля покачивания кисти в положении блика (остальное — курсор)
+  const GLINT_ZONE = [0.5, 0.765]; // где по ширине экрана курсор ведёт блик: шея → высокая башня
+  const GLINT_EASE = 0.08; // как плавно блик догоняет курсор
+  const GLINT_FROM = 2.5, GLINT_TO = 13.5; // какие положения блика из 16 проходит курсор от левого края экрана до правого
+  const liveCanvas = document.getElementById('girl-live');
+
+  function createLiveArm() {
+    const gl = liveCanvas.getContext('webgl', { premultipliedAlpha: true, alpha: true });
+    if (!gl) return Promise.resolve(null);
+    const compile = (type, source) => {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+      return shader;
+    };
+    const upload = (image, premultiply) => {
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiply);
+      gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    };
+    // premultiply: у картинок с прозрачностью (кадр, карта) — да, у карт-масок — нет
+    const texture = (unit, image, premultiply) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      if (image) upload(image, premultiply);
+      return tex;
+    };
+    const maps = new Image(); maps.src = 'layers/arm/arm_maps.png?v=1';
+    const cardSheet = new Image(); cardSheet.src = 'layers/arm/card_sheet.webp?v=12';
+    const aura = new Image(); aura.src = 'layers/arm/card_aura.png?v=1';
+
+    return Promise.all([maps, cardSheet, aura].map(load)).then(() => {
+      if (!maps.naturalWidth || !cardSheet.naturalWidth || !aura.naturalWidth) return null;
+      const program = gl.createProgram();
+      gl.attachShader(program, compile(gl.VERTEX_SHADER, `
+        attribute vec2 aPosition;
+        varying vec2 vUv;
+        void main() {
+          vUv = vec2(aPosition.x * 0.5 + 0.5, 0.5 - aPosition.y * 0.5);
+          gl_Position = vec4(aPosition, 0.0, 1.0);
+        }
+      `));
+      gl.attachShader(program, compile(gl.FRAGMENT_SHADER, document.getElementById('arm-shader').textContent));
+      gl.linkProgram(program);
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const position = gl.getAttribLocation(program, 'aPosition');
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+      const girlTex = texture(0, null, true);
+      texture(1, maps, false);
+      texture(2, cardSheet, true);
+      texture(3, aura, false);
+      ['uGirl', 'uMaps', 'uCard', 'uAura'].forEach((name, unit) => gl.uniform1i(gl.getUniformLocation(program, name), unit));
+      const u = {};
+      ['uShift', 'uTh', 'uPivot', 'uCardC', 'uCardAng', 'uTile0', 'uTile1', 'uMix', 'uGlow', 'uPx'].forEach((name) => { u[name] = gl.getUniformLocation(program, name); });
+      gl.uniform2f(u.uPivot, ARM.pivot[0], ARM.pivot[1]);
+      const profile = (y) => { const s = Math.max(0, Math.min(1, (ARM.still - y) / (ARM.still - ARM.tip))); return s * s * (3 - 2 * s); };
+      const cardProfile = profile(ARM.card[1]);
+      const A = ARM.amplitude * Math.PI / 180;
+      const STATES = 16, COLS = 4;
+      let hasFrame = false;
+
+      return {
+        // новый кадр поворота головы
+        setFrame(source, index) {
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, girlTex);
+          upload(source, true);
+          gl.uniform2f(u.uShift, HAND_SHIFT[index * 2] * 1.5, HAND_SHIFT[index * 2 + 1] * 1.5); // 2560 → 3840
+          hasFrame = true;
+        },
+        // glintX: где блик на карте, -1 слева … 1 справа (идёт за курсором)
+        draw(time, glowAmount, glintX = 0) {
+          if (!hasFrame) return false;
+          const ratio = Math.min(window.devicePixelRatio || 1, 2);
+          const width = Math.min(liveCanvas.clientWidth * ratio, ARM_MAX_WIDTH) | 0;
+          const height = Math.round(width * 9 / 16);
+          if (liveCanvas.width !== width || liveCanvas.height !== height) {
+            liveCanvas.width = width;
+            liveCanvas.height = height;
+            gl.viewport(0, 0, width, height);
+          }
+          const th = reduceMotion ? 0 : A * Math.sin(time / 1000 / ARM.period * Math.PI * 2);
+          const thc = th * cardProfile; // карта качается вместе с кистью в своём месте
+          const qx = ARM.card[0] - ARM.pivot[0], qy = ARM.card[1] - ARM.pivot[1];
+          gl.uniform1f(u.uTh, th);
+          gl.uniform2f(u.uCardC, ARM.pivot[0] + qx * Math.cos(thc) - qy * Math.sin(thc), ARM.pivot[1] + qx * Math.sin(thc) + qy * Math.cos(thc));
+          gl.uniform1f(u.uCardAng, (ARM.cardAngle * Math.PI / 180) - thc);
+          // блик ведёт курсор: слева направо по карте; покачивание кисти чуть добавляет живости
+          const glintPos = Math.max(-1, Math.min(1, glintX * (1 - GLINT_ROCK) + (A ? th / A : 0) * GLINT_ROCK));
+          // крайние положения курсора — блик у краёв карты, а не за ними (на карте он с 2.5-го по 13.5-й лист)
+          const state = GLINT_FROM + (glintPos + 1) / 2 * (GLINT_TO - GLINT_FROM);
+          const a = Math.min(STATES - 2, Math.floor(state));
+          gl.uniform2f(u.uTile0, (a % COLS) / COLS, Math.floor(a / COLS) / COLS);
+          gl.uniform2f(u.uTile1, ((a + 1) % COLS) / COLS, Math.floor((a + 1) / COLS) / COLS);
+          gl.uniform1f(u.uMix, state - a);
+          gl.uniform1f(u.uGlow, glowAmount * ARM.glow);
+          gl.uniform1f(u.uPx, 3840 / width);
+          gl.clearColor(0, 0, 0, 0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          return true;
+        },
+      };
+    });
+  }
+
+  let liveArm = null;
+  let liveShown = -1;
+  let cardGlow = 0;
+  createLiveArm().then((arm) => { liveArm = arm; }).catch((error) => console.warn('Рука без движения:', error.message));
+
+  function draw(index) {
+    const img = frames[index];
+    if (!bitmaps[index] && (!img.complete || !img.naturalWidth)) return false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmaps[index] || img, 0, 0, canvas.width, canvas.height);
+    return true;
+  }
+
+  // Положение от -1 до 1; при нулевом размере окна остаётся центр
+  function toRange(position, size) {
+    if (!size) return 0;
+    return Math.max(-1, Math.min(1, (position / size) * 2 - 1));
+  }
+
+  window.addEventListener('pointermove', (event) => {
+    pointer = toRange(event.clientX, window.innerWidth);
+    pointerY = toRange(event.clientY, window.innerHeight);
+  });
+
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const noMouse = matchMedia('(hover: none)').matches;
+
+  // Набросок рисует видеокарта: краска растекается по карте роста (paint/growth.png).
+  // На карте тёмное — места, куда краска приходит раньше, светлое — позже
+  const sketchImages = {};
+  const toImage = (src) => {
+    const img = new Image();
+    img.src = src;
+    return load(img).then(() => img);
+  };
+  // Слои наброска сангиной. INK_VERSION меняем, когда автор присылает новые слои: иначе браузер покажет старые из памяти
+  const INK_VERSION = 9;
+  const SKETCH_FILES = {
+    sky: `layers/ink/sanguine/sky.webp?v=${INK_VERSION}`,
+    trees: `layers/ink/sanguine/trees.webp?v=${INK_VERSION}`,
+    spheres: `layers/ink/sanguine/spheres.webp?v=${INK_VERSION}`,
+    girl: `layers/ink/sanguine/girl.webp?v=${INK_VERSION}`,
+    map: 'layers/map_depth.png', growth: 'paint/growth.png' };
+  Promise.all(Object.values(SKETCH_FILES).map(toImage)).then((loaded) => {
+    Object.keys(SKETCH_FILES).forEach((key, i) => { sketchImages[key] = loaded[i]; });
+  });
+
+  let sketchGl = null;
+  function createSketchGl() {
+    const gl = sketch.getContext('webgl', { premultipliedAlpha: true, alpha: true });
+    if (!gl) return null;
+    const compile = (type, source) => {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+      return shader;
+    };
+    const program = gl.createProgram();
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, `
+      attribute vec2 aPosition;
+      varying vec2 vUv;
+      void main() {
+        vUv = vec2(aPosition.x * 0.5 + 0.5, 0.5 - aPosition.y * 0.5);
+        gl_Position = vec4(aPosition, 0.0, 1.0);
+      }
+    `));
+    // Тонкий край считается через производные; если видеокарта их не умеет, край чуть грубее
+    const derivatives = gl.getExtension('OES_standard_derivatives');
+    const header = derivatives ? '#extension GL_OES_standard_derivatives : enable\n#define HAS_DERIVATIVES\n' : '';
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, header + document.getElementById('sketch-shader').textContent));
+    gl.linkProgram(program);
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'aPosition');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    // Карту роста не сглаживаем: в ней число из двух каналов, смешивает его сам шейдер
+    const textures = [
+      ['uSky', sketchImages.sky, true, gl.LINEAR],
+      ['uTrees', sketchImages.trees, true, gl.LINEAR],
+      ['uPainted', sketchImages.spheres, true, gl.LINEAR],
+      ['uMap', sketchImages.map, false, gl.LINEAR],
+      ['uGirl', sketchImages.girl, true, gl.LINEAR],
+      ['uGrowth', sketchImages.growth, false, gl.NEAREST],
+    ];
+    textures.forEach(([name, image, premultiply, filter], unit) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiply);
+      gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+      gl.uniform1i(gl.getUniformLocation(program, name), unit);
+    });
+    const u = (name) => gl.getUniformLocation(program, name);
+    gl.uniform2f(u('uGrowthSize'), sketchImages.growth.naturalWidth, sketchImages.growth.naturalHeight);
+    gl.uniform1f(u('uNear'), LANDSCAPE_NEAR);
+    return {
+      gl,
+      uSpot: u('uSpot'), uProgress: u('uProgress'), uProgress2: u('uProgress2'),
+      uSkyRect: u('uSkyRect'), uGirlRect: u('uGirlRect'), uAspect: u('uAspect'),
+      uSpheres: u('uSpheres'), uMotion: u('uMotion'), uPointer: u('uPointer'), uTime: u('uTime'),
+      sphereData: new Float32Array(SPHERES.length * 3),
+      motionData: new Float32Array(SPHERES.length * 2),
+    };
+  }
+
+  // Состояние: 'paint' — живопись, 'freeze' — голова встаёт прямо,
+  // 'reveal' — растекаются два пятна, 'open' — живопись с карточкой предмета
+  let mode = 'paint';
+  let modeStart = 0;
+  let lastTime = 0;
+  let active = null; // какой предмет выбран
+  let spot = { x: 0.5, y: 0.5, reach: 1 }; // откуда растекается краска, в долях сцены
+
+  // Точки, откуда растекается краска, в долях сцены: кончик пальца и середина парящих наушников
+  const ITEMS = {
+    card: { x: 0.6, y: 0.56 },
+    phones: { x: 0.1508, y: 0.4847 },
+    orange: { x: 0.8721, y: 0.7968 },
+    lily: { x: 0.773, y: 0.215 },
+  };
+  const floatLily = document.getElementById('spot-lily');
+  const lilyShine = document.getElementById('lily-shine');
+  const LILY_SHARE = 4.6 / (10.208 * 1.08); // ширина лилии (4.6% сцены) к поперечнику шара
+  const LIT = { phones: floatPhones, orange: floatOrange, lily: floatLily }; // кто светится, когда выбран (карту подсвечивает живая рука)
+
+  const info = document.getElementById('info');
+
+  function startSketch(item) {
+    if (mode !== 'paint' && mode !== 'open') return;
+    closeInfo();
+    active = item;
+    const { x, y } = ITEMS[item];
+    // До какого значения карты роста идти, чтобы краска дошла до самого дальнего угла
+    const corners = [[0, 0], [1, 0], [0, 1], [1, 1]];
+    const far = Math.max(...corners.map(([cx, cy]) => Math.hypot((cx - x) * 16 / 9, cy - y)));
+    spot = { x, y, reach: far / Math.hypot(16 / 9, 1) + 0.05 };
+    mode = 'freeze';
+  }
+
+  function openInfo() {
+    mode = 'open';
+    if (LIT[active]) LIT[active].classList.add('is-lit');
+    info.querySelectorAll('[data-item]').forEach((part) => { part.hidden = part.dataset.item !== active; });
+    info.classList.add('is-open');
+  }
+
+  function closeInfo() {
+    Object.values(LIT).forEach((element) => element.classList.remove('is-lit'));
+    closeSheets();
+    info.classList.remove('is-open');
+  }
+
+  document.getElementById('spot-phones').addEventListener('click', () => startSketch('phones'));
+  document.getElementById('spot-card').addEventListener('click', () => startSketch('card'));
+  floatOrange.addEventListener('click', () => startSketch('orange'));
+  // наведение на карту — под ней загорается свечение, как у наушников
+  let cardHover = false;
+  const spotCard = document.getElementById('spot-card');
+  spotCard.addEventListener('pointerenter', () => { cardHover = true; });
+  spotCard.addEventListener('pointerleave', () => { cardHover = false; });
+  spotCard.addEventListener('focus', () => { cardHover = spotCard.matches(':focus-visible'); });
+  spotCard.addEventListener('blur', () => { cardHover = false; });
+  floatLily.addEventListener('click', () => startSketch('lily'));
+
+  // Лилия в центре верхней сферы: та же формула, что у сфер (их место — в долях слоя, слой на 8% больше сцены)
+  function placeLily(x, y) {
+    const sphere = SPHERES[0];
+    const float = Math.sin(objectsClock / sphere.period * Math.PI * 2 + sphere.phase) * sphere.float;
+    const layerX = (sphere.left + sphere.width / 2) / 100 - x * sphere.depth / 1.08;
+    const layerY = (sphere.top + sphere.width * 16 / 9 / 2) / 100 + (-y * sphere.depth * 0.4 + float) * 16 / 9 / 1.08;
+    const width = stage.clientWidth, height = stage.clientHeight;
+    // блик — там же, где его рисует шар: свет идёт за курсором (та же формула, что в пейзаже)
+    const lx = -0.35 + x * 0.55, ly = 0.55 - y * 0.35, lz = 0.8;
+    const ll = Math.hypot(lx, ly, lz);
+    const hx = lx / ll, hy = ly / ll, hz = lz / ll + 1, hl = Math.hypot(hx, hy, hz);
+    const k = 1 / (2 * LILY_SHARE); // из долей радиуса шара — в доли иконки
+    lilyShine.style.setProperty('--gx', `${(0.5 + hx / hl * k) * 100}%`);
+    lilyShine.style.setProperty('--gy', `${(0.5 - hy / hl * k) * 100}%`);
+    floatLily.style.transform = `translate(${(-0.04 + layerX * 1.08) * width}px, ${(-0.04 + layerY * 1.08) * height}px) translate(-50%, -50%)`;
+  }
+  function closeSheets() {
+    info.querySelectorAll('.card.sheet-open').forEach((card) => card.classList.remove('sheet-open'));
+    info.querySelectorAll('.sheet.is-open').forEach((sheet) => sheet.classList.remove('is-open'));
+  }
+  // Карточка: крестик закрывает её, плюс открывает шторку, крестик шторки и затемнение закрывают шторку
+  info.addEventListener('click', (event) => {
+    if (event.target.closest('.card-close')) {
+      closeInfo();
+      mode = 'paint';
+      return;
+    }
+    const benefit = event.target.closest('.benefit');
+    if (benefit) {
+      const card = benefit.closest('.card');
+      closeSheets();
+      card.classList.add('sheet-open');
+      card.querySelectorAll('.sheet')[Number(benefit.dataset.sheet)].classList.add('is-open');
+      return;
+    }
+    if (event.target.closest('.sheet-close') || event.target.classList.contains('scrim')) closeSheets();
+  });
+
+  // Сколько прошли оба пятна: [первое, второе], каждое от 0 (нет пятна) до 1 (весь экран).
+  // null — перехода сейчас нет
+  const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  function paintAmount(time) {
+    // Краска начинает растекаться, когда голова почти повернулась: пятно сначала маленькое,
+    // и пока оно растёт, голова успевает встать точно на место
+    if (mode === 'freeze' && Math.abs(current - FREEZE_FRAME) < 3) {
+      mode = 'reveal';
+      modeStart = time;
+    }
+    const passed = time - modeStart;
+    if (mode === 'reveal' && (reduceMotion || passed >= PAINT.gap + PAINT.duration)) openInfo();
+    document.body.dataset.mode = mode;
+    if (mode !== 'reveal') return null;
+    const part = (t) => easeInOut(Math.max(0, Math.min(1, t / PAINT.duration)));
+    return [part(passed), part(passed - PAINT.gap)];
+  }
+
+  // Где лежит слой на сцене: как .layer — на 8% больше сцены, со сдвигом за курсором
+  function layerRect(depth, scale) {
+    const w = 1.08 * scale;
+    const h = 1.08 * scale;
+    const x = -0.04 - (w - 1.08) / 2 - parallaxX * depth;
+    const y = -0.04 - (h - 1.08) - parallaxY * depth * 0.4 * 16 / 9;
+    return [x, y, w, h];
+  }
+
+  let warmed = false;
+  function drawSketch(amount, breath, time) {
+    if (!sketchImages.growth) return;
+    if (!sketchGl) {
+      try { sketchGl = createSketchGl(); } catch (error) { console.warn('Набросок без видеокарты:', error.message); }
+      if (!sketchGl) return;
+    }
+    const visible = Boolean(amount) && amount[0] > 0 && amount[1] < 1;
+    if (!visible && warmed) {
+      sketch.style.visibility = 'hidden';
+      return;
+    }
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.min(stage.clientWidth * ratio, SKETCH_MAX_WIDTH) | 0;
+    const height = Math.round(width * 9 / 16);
+    const { gl } = sketchGl;
+    if (sketch.width !== width || sketch.height !== height) {
+      sketch.width = width;
+      sketch.height = height;
+      gl.viewport(0, 0, width, height);
+    }
+    gl.uniform2f(sketchGl.uSpot, spot.x, spot.y);
+    const [first, second] = amount || [0, 0];
+    gl.uniform1f(sketchGl.uProgress, first * spot.reach);
+    gl.uniform1f(sketchGl.uProgress2, second * spot.reach);
+    gl.uniform4fv(sketchGl.uSkyRect, layerRect(DEPTH.sky, 1));
+    gl.uniform4fv(sketchGl.uGirlRect, layerRect(DEPTH.girl, breath));
+    placeSpheres(time, parallaxX, parallaxY, sketchGl.sphereData, sketchGl.motionData);
+    gl.uniform3fv(sketchGl.uSpheres, sketchGl.sphereData);
+    gl.uniform2fv(sketchGl.uMotion, sketchGl.motionData);
+    gl.uniform2f(sketchGl.uPointer, parallaxX, parallaxY);
+    gl.uniform1f(sketchGl.uTime, time / 1000);
+    gl.uniform1f(sketchGl.uAspect, 16 / 9);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // Первый прогон идёт заранее и невидимо, чтобы первый клик не запинался
+    warmed = true;
+    sketch.style.visibility = visible ? 'visible' : 'hidden';
+  }
+
+  // Проверка перехода: пробел ставит растекание на паузу и снимает с неё,
+  // а адрес с ?slow=5 замедляет его в 5 раз (число можно любое)
+  const SLOW = Math.max(1, Number(new URLSearchParams(location.search).get('slow')) || 1);
+  let paintClock = 0;
+  let lastTick = null;
+  let paused = false;
+  // Часы наушников, апельсина и руки с картой: пока предмет выбран, они замирают, как и голова (плавно тормозят и плавно трогаются)
+  let objectsClock = 0;
+  let objectsSpeed = 1;
+  let lastObjectsTick = null;
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Space') return;
+    event.preventDefault();
+    paused = !paused;
+  });
+
+  function tick(time) {
+    // На телефоне мыши нет: голова и слои медленно ходят туда и обратно
+    if (noMouse && !reduceMotion) pointer = Math.sin(time / 2500);
+
+    lastTime = time;
+    if (lastTick !== null && !paused) paintClock += (time - lastTick) / SLOW;
+    lastTick = time;
+    const amount = paintAmount(paintClock);
+    objectsSpeed += ((mode === 'paint' ? 1 : 0) - objectsSpeed) * 0.05;
+    if (lastObjectsTick !== null) objectsClock += (time - lastObjectsTick) * objectsSpeed;
+    lastObjectsTick = time;
+    const reveal = 0; // живопись видна всегда: её открывает второе пятно
+
+    // Курсор справа — первый кадр (голова повёрнута вправо), слева — последний.
+    // После клика голова встаёт к кадру наброска и перестаёт следить за курсором.
+    const follow = (1 - (pointer + 1) / 2) * (FRAME_COUNT - 1);
+    const target = mode === 'paint' ? follow : FREEZE_FRAME;
+    // После клика голова поворачивается быстрее, чем за курсором
+    const speed = mode === 'paint' ? EASE : EASE * 2;
+    current = reduceMotion ? target : current + (target - current) * speed;
+    const index = Math.round(current);
+    if (index !== drawn && draw(index)) drawn = index;
+    // живая рука: кадр головы передаём видеокарте, а рисуем каждый раз — рука качается всё время
+    if (liveArm) {
+      const source = bitmaps[index] || frames[index];
+      if (index !== liveShown && (bitmaps[index] || (source.complete && source.naturalWidth))) {
+        liveArm.setFrame(source, index);
+        liveShown = index;
+      }
+      // свечение под картой: плавно включается при наведении и когда карта выбрана, дальше горит ровно
+      const glowTarget = (mode === 'open' && active === 'card') || cardHover ? 1 : 0;
+      cardGlow += (glowTarget - cardGlow) * 0.06;
+      // блик идёт за курсором, пока ничего не выбрано; при выборе замирает вместе со всем
+      if (mode === 'paint') {
+        // блик проходит карту, пока курсор идёт от шеи девушки до высокой башни замка
+        const along = Math.max(0, Math.min(1, ((pointer + 1) / 2 - GLINT_ZONE[0]) / (GLINT_ZONE[1] - GLINT_ZONE[0])));
+        glintX += (along * 2 - 1 - glintX) * GLINT_EASE;
+      }
+      if (liveArm.draw(objectsClock, cardGlow, glintX) && liveCanvas.style.visibility !== 'visible') {
+        liveCanvas.style.visibility = 'visible';
+        canvas.style.visibility = 'hidden';
+      }
+    }
+
+    if (!reduceMotion) {
+      parallaxX += (pointer - parallaxX) * PARALLAX_EASE;
+      parallaxY += (pointerY - parallaxY) * PARALLAX_EASE;
+      const width = stage.clientWidth;
+      const shift = (depth) => `translate3d(${-parallaxX * depth * width}px, ${-parallaxY * depth * width * 0.4}px, 0)`;
+
+      const breath = 1 + (Math.sin(time / BREATH.period * Math.PI * 2) + 1) / 2 * BREATH.scale;
+
+      layers.sky.style.transform = shift(DEPTH.sky);
+      drawSketch(amount, breath, time);
+      if (drawLandscape) {
+        // Под полностью проявленным наброском живопись не видна: пейзаж не рисуем
+        if (reveal < 1 && time - lastLandscape >= 1000 / LANDSCAPE_FPS - 2) {
+          drawLandscape(time, parallaxX, parallaxY);
+          lastLandscape = time;
+        }
+      } else {
+        layers.trees.style.transform = shift(DEPTH.trees);
+      }
+      if (!drawLandscape) spheres.forEach((sphere) => {
+        const float = Math.sin(objectsClock / sphere.period * Math.PI * 2 + sphere.phase) * sphere.float * width;
+        sphere.box.style.transform = `${shift(sphere.depth)} translateY(${float}px)`;
+        placeGlint(sphere.glint, parallaxX, parallaxY);
+      });
+      canvas.style.transform = `${shift(DEPTH.girl)} scale(${breath})`;
+      liveCanvas.style.transform = canvas.style.transform;
+
+      // Парящие наушники: покачиваются вверх-вниз и вращаются вокруг своей оси
+      const lift = Math.sin(objectsClock / 1000 * Math.PI * 2 / FLOAT_PHONES.period) * FLOAT_PHONES.float * width;
+      floatPhones.style.transform = `${shift(FLOAT_PHONES.depth)} translateY(${lift}px)`;
+      const liftOrange = Math.sin(objectsClock / 1000 * Math.PI * 2 / FLOAT_ORANGE.period + FLOAT_ORANGE.phase) * FLOAT_ORANGE.float * width;
+      floatOrange.style.transform = `${shift(FLOAT_ORANGE.depth)} translateY(${liftOrange}px)`;
+      drawSpin(objectsClock, 1 - objectsSpeed);
+      placeLily(parallaxX, parallaxY);
+    } else {
+      drawSpin(0);
+      placeLily(0, 0);
+      drawSketch(amount, 1, time);
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
