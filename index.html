@@ -252,6 +252,26 @@
   .card.sheet-open .card-close { opacity: 0.7; }
   .card.sheet-open .card-title { opacity: 0.9; }
 
+  /* Карточка ожидания: видна, пока не догрузятся поворот головы и сангина. Размеры из макета, узел 100:430 */
+  .load-card {
+    position: absolute;
+    right: 7.24vw;
+    bottom: calc(97 * var(--u)); /* низ карточки на линии низа букв большого логотипа */
+    width: calc(814 * var(--u));
+    height: calc(290 * var(--u));
+    box-sizing: border-box;
+    padding: calc(32 * var(--u));
+    color: #141b28;
+    font-family: Inter, Arial, sans-serif;
+    background: #fff6e8;
+    border-radius: calc(8 * var(--u));
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .load-card.is-visible { opacity: 1; pointer-events: auto; }
+  .load-card .desc { font-size: calc(27 * var(--u)); line-height: calc(35 * var(--u)); }
+
   /* Телефон: только самое нужное, карточка — сверху под шапкой */
   @media (max-width: 640px) {
     :root { --u: min(100vw / 500, 100vh / 720); }
@@ -260,6 +280,15 @@
     .wordmark { left: 16px; bottom: 24px; font-size: 17vw; line-height: 0.885; }
     .info { left: 50%; right: auto; top: calc(32px + 40 * var(--u)); transform: translate(-50%, calc(24 * var(--u))); }
     .info.is-open { transform: translate(-50%, 0); }
+    .load-card { left: 16px; right: 16px; top: calc(32px + 40 * var(--u)); bottom: auto; width: auto; height: auto; padding: 16px; }
+    .load-card .card { gap: 12px; }
+    .load-card .eyebrow { font-size: 12px; line-height: 16px; }
+    .load-card .card button.close-btn { width: 24px; height: 24px; }
+    .load-card .close-btn svg { width: 14px; height: 14px; }
+    .load-card .title-block { gap: 8px; }
+    .load-card .card-title { font-size: 28px; line-height: 30px; }
+    .load-card .card-title em { margin-top: -4px; font-size: 30px; line-height: 32px; }
+    .load-card .desc { font-size: 14px; line-height: 20px; }
   }
   /* Парящие наушники: размер и место — в долях сцены (центр 15.08% / 48.47%, ширина 14%) */
   .float-phones {
@@ -414,6 +443,7 @@
     </ul>
   </nav>
   <!-- Карточка предмета: по клику на наушники, лилию, апельсин или карту -->
+  <aside class="load-card" id="load-card" role="status"><div class="card"><div class="card-head"><p class="eyebrow">Сайт</p><button class="close-btn" id="load-card-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="title-block"><h2 class="card-title"><span>Пожалуйста,</span><em>дождитесь загрузки</em></h2><div class="desc"><p>Первое открытие может занять до&nbsp;двух минут</p></div></div></div></aside>
   <aside class="info" id="info" aria-live="polite">
     <article class="card" data-item="phones" hidden>
       <div class="card-head"><p class="eyebrow">Ваш спутник по&nbsp;музею</p><button class="close-btn card-close" type="button" aria-label="Закрыть"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
@@ -1314,9 +1344,20 @@
     spheres: `layers/ink/sanguine/spheres.webp?v=${INK_VERSION}`,
     girl: `layers/ink/sanguine/girl.webp?v=${INK_VERSION}`,
     map: 'layers/map_depth.png', growth: 'paint/growth.png' };
-  Promise.all(Object.values(SKETCH_FILES).map(toImage)).then((loaded) => {
+  const sketchLoaded = Promise.all(Object.values(SKETCH_FILES).map(toImage)).then((loaded) => {
     Object.keys(SKETCH_FILES).forEach((key, i) => { sketchImages[key] = loaded[i]; });
   });
+
+  // Карточка ожидания: появляется, только если загрузка затянулась, и уходит, когда готовы кадры головы и сангина
+  const loadCard = document.getElementById('load-card');
+  const showLoadCard = setTimeout(() => loadCard.classList.add('is-visible'), 1200);
+  const hideLoadCard = () => {
+    clearTimeout(showLoadCard);
+    loadCard.classList.remove('is-visible');
+    setTimeout(() => loadCard.remove(), 500);
+  };
+  document.getElementById('load-card-close').addEventListener('click', hideLoadCard);
+  Promise.all([...frames.map(load), sketchLoaded]).then(hideLoadCard);
 
   let sketchGl = null;
   function createSketchGl() {
